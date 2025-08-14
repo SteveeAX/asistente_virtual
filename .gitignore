@@ -1,0 +1,78 @@
+# Environment variables y configuración sensible
+.env
+.env.local
+.env.production
+.env.test
+*.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Base de datos local
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+app_debug.log
+error.txt
+*.csv
+
+# Archivos temporales y de prueba
+mic_test_*.wav
+test_*.py
+
+# Credenciales y archivos de servicio
+*.json
+service-account-key.json
+google-credentials.json
+credentials.json
+
+# Archivos subidos por usuarios
+uploads/
+temp/
+tmp/
+
+# Archivos binarios específicos del proyecto
+*.deb
+*.tar.gz
+zrok
+porcupine_params_es.pv
+catalina_es_raspberry-pi_v3_0_0.ppn
+
+# IDE y editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Sistema operativo
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
