@@ -8,8 +8,9 @@ logger = logging.getLogger(__name__)
 try:
     # Intenta inicializar el cliente.
     # Automáticamente usará la variable de entorno GOOGLE_APPLICATION_CREDENTIALS.
-    db = firestore.Client()
-    logger.info("LOGGER: Conexión con Cloud Firestore establecida.")
+    # Usa database específica para el asistente
+    db = firestore.Client(database='asistente-kata-db')
+    logger.info("LOGGER: Conexión con Cloud Firestore establecida (database: asistente-kata-db).")
     firestore_available = True
 except Exception as e:
     logger.error(f"LOGGER: No se pudo conectar a Firestore. El registro en la nube estará desactivado. Error: {e}")

@@ -8,8 +8,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 
 try:
     # Usa el mismo método de autenticación que tu app principal
-    db = firestore.Client()
-    logging.info("Conexión con Cloud Firestore establecida.")
+    # Usa database específica para el asistente
+    db = firestore.Client(database='asistente-kata-db')
+    logging.info("Conexión con Cloud Firestore establecida (database: asistente-kata-db).")
 
     # Nombre del archivo de salida
     output_filename = "interaction_logs.csv"

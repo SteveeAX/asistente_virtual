@@ -12,9 +12,10 @@
         th { background-color: #4a86e8; color: white; }
         .container { max-width: 900px; margin: auto; }
         .section { margin-bottom: 2em; }
-        form { display: grid; grid-template-columns: auto 1fr; gap: 10px; margin-top: 1em; padding: 1em; background-color: #fff; box-shadow: 0 2px 3px rgba(0,0,0,0.1); align-items: center; }
-        form label { font-weight: bold; text-align: right; }
-        form input, form button, form select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        form { display: grid; grid-template-columns: auto 1fr; gap: 10px; margin-top: 1em; padding: 1em; background-color: #fff; box-shadow: 0 2px 3px rgba(0,0,0,0.1); align-items: start; }
+        form label { font-weight: bold; text-align: right; padding-top: 10px; }
+        form input, form button, form select, form textarea { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit; }
+        form textarea { resize: vertical; min-height: 60px; }
         form button { background-color: #28a745; color: white; grid-column: 2; cursor: pointer; }
         .delete-btn { background-color: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
         .day-selector { display: flex; gap: 10px; justify-content: flex-start; }
@@ -36,12 +37,14 @@
         <div class="section">
             <h2>Recordatorios de Medicamentos</h2>
             <table>
-                <thead><tr><th>Medicamento</th><th>Horas</th><th>Días</th><th>Acción</th></tr></thead>
+                <thead><tr><th>Medicamento</th><th>Cantidad</th><th>Horas</th><th>Días</th><th>Acción</th></tr></thead>
                 <tbody id="reminder-list-body"></tbody>
             </table>
             <h2>Añadir Recordatorio</h2>
             <form id="add-reminder-form">
                 <label for="medicationName">Medicamento:</label><input type="text" id="medicationName" required>
+                <label for="medicationQuantity">Cantidad:</label><input type="text" id="medicationQuantity" placeholder="Ej: 2 pastillas, 500ml, 1/2 tableta">
+                <label for="medicationPrescription">Prescripción:</label><textarea id="medicationPrescription" rows="3" placeholder="Ej: Tomar después del almuerzo con estómago lleno"></textarea>
                 <label for="remindTimes">Horas (HH:MM, ...):</label><input type="text" id="remindTimes" placeholder="Ej: 08:00, 20:00" required>
                 <label>Días:</label>
                 <div class="day-selector" id="remind-days">

@@ -13,7 +13,7 @@ cd /home/steveen/asistente_kata
 source /home/steveen/gcp-tts-venv/bin/activate
 
 # Exporta la variable de credenciales de Google
-export GOOGLE_APPLICATION_CREDENTIALS="/home/steveen/Downloads/virtualasis-1685a67ea029.json"
+export GOOGLE_APPLICATION_CREDENTIALS="/home/steveen/asistente_kata/gleaming-terra-454706-r0-0b19bb6937f8.json"
 
 # Ejecuta la aplicación y guarda toda la salida (normal y de error) en un archivo de log
 python3 improved_app.py >> /home/steveen/kata_autostart.log 2>&1

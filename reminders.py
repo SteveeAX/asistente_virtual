@@ -22,12 +22,26 @@ def init_db():
     c.execute("DROP TABLE IF EXISTS tasks")
     logger.info("Tabla de tareas vieja eliminada para aplicar nuevo esquema.")
 
-    # Tabla de recordatorios (sin cambios)
+    # Tabla de recordatorios - ACTUALIZADA con nuevos campos
     c.execute("""
     CREATE TABLE IF NOT EXISTS reminders (
         id INTEGER PRIMARY KEY, medication_name TEXT NOT NULL, photo_path TEXT,
-        times TEXT NOT NULL, days_of_week TEXT NOT NULL
+        times TEXT NOT NULL, days_of_week TEXT NOT NULL,
+        cantidad VARCHAR(100), prescripcion TEXT
     )""")
+    
+    # Agregar columnas si no existen (para migración de datos existentes)
+    try:
+        c.execute("ALTER TABLE reminders ADD COLUMN cantidad VARCHAR(100)")
+        logger.info("Columna 'cantidad' agregada a la tabla reminders")
+    except sqlite3.OperationalError:
+        logger.info("Columna 'cantidad' ya existe en la tabla reminders")
+    
+    try:
+        c.execute("ALTER TABLE reminders ADD COLUMN prescripcion TEXT")
+        logger.info("Columna 'prescripcion' agregada a la tabla reminders")
+    except sqlite3.OperationalError:
+        logger.info("Columna 'prescripcion' ya existe en la tabla reminders")
     
     # --- NUEVA TABLA DE TAREAS ---
     c.execute("""
@@ -56,10 +70,10 @@ def init_db():
     logger.info("Base de datos inicializada con el nuevo esquema de tareas.")
 
 # --- FUNCIONES DE RECORDATORIOS (SIN CAMBIOS) ---
-def add_reminder(medication_name, photo_path, times, days_of_week):
+def add_reminder(medication_name, photo_path, times, days_of_week, cantidad=None, prescripcion=None):
     conn = get_conn()
-    conn.execute("INSERT INTO reminders (medication_name, photo_path, times, days_of_week) VALUES (?, ?, ?, ?)",
-                 (medication_name, photo_path, times, days_of_week))
+    conn.execute("INSERT INTO reminders (medication_name, photo_path, times, days_of_week, cantidad, prescripcion) VALUES (?, ?, ?, ?, ?, ?)",
+                 (medication_name, photo_path, times, days_of_week, cantidad, prescripcion))
     conn.commit()
     conn.close()
 

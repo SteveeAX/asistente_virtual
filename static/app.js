@@ -62,14 +62,28 @@ function handleAddContact(event) {
     });
 }
 
-// --- FUNCIONES DE RECORDATORIOS (sin cambios) ---
+// --- FUNCIONES DE RECORDATORIOS (actualizada con nuevos campos) ---
 function fetchReminders() {
     fetch('/api/reminders').then(res => res.json()).then(data => {
         const list = document.getElementById('reminder-list-body');
         list.innerHTML = '';
         data.forEach(r => {
             const row = list.insertRow();
-            row.innerHTML = `<td>${r.medication_name}</td><td>${r.times}</td><td>${r.days_of_week}</td><td><button class="delete-btn" data-id="${r.id}" data-type="reminder">Eliminar</button></td>`;
+            const cantidad = r.cantidad || 'No especificada';
+            const prescripcion = r.prescripcion ? (r.prescripcion.length > 30 ? r.prescripcion.substring(0, 30) + '...' : r.prescripcion) : '';
+            
+            // Tooltip para prescripción completa si es muy larga
+            const prescripcionCell = r.prescripcion ? `<span title="${r.prescripcion}">${prescripcion}</span>` : '';
+            
+            row.innerHTML = `
+                <td>
+                    <strong>${r.medication_name}</strong>
+                    ${prescripcionCell ? '<br><small style="color: #666; font-style: italic;">📋 ' + prescripcionCell + '</small>' : ''}
+                </td>
+                <td><span style="color: #2e86ab; font-weight: bold;">${cantidad}</span></td>
+                <td>${r.times}</td>
+                <td>${r.days_of_week}</td>
+                <td><button class="delete-btn" data-id="${r.id}" data-type="reminder">Eliminar</button></td>`;
         });
         addDeleteListeners();
     });
@@ -78,6 +92,8 @@ function handleAddReminder(event) {
     event.preventDefault();
     const formData = new FormData();
     formData.append('medication_name', document.getElementById('medicationName').value);
+    formData.append('cantidad', document.getElementById('medicationQuantity').value);  // Nuevo campo
+    formData.append('prescripcion', document.getElementById('medicationPrescription').value);  // Nuevo campo
     formData.append('times', document.getElementById('remindTimes').value);
     const days = [];
     document.querySelectorAll('#remind-days input:checked').forEach(cb => days.push(cb.value));
@@ -86,8 +102,12 @@ function handleAddReminder(event) {
     if (photoInput.files.length > 0) formData.append('photo', photoInput.files[0]);
     fetch('/api/reminders/add', { method: 'POST', body: formData
     }).then(res => res.json()).then(data => {
-        if (data.success) { document.getElementById('add-reminder-form').reset(); fetchReminders(); } 
-        else { alert('Error al guardar.'); }
+        if (data.success) { 
+            document.getElementById('add-reminder-form').reset(); 
+            fetchReminders(); 
+            alert('Recordatorio añadido con éxito!');
+        } 
+        else { alert('Error al guardar: ' + (data.error || 'Error desconocido')); }
     });
 }
 

@@ -18,13 +18,22 @@ class ReminderTab(ctk.CTkFrame):
         self.name_entry = ctk.CTkEntry(form_frame, placeholder_text="Ej: Pastilla de la presión")
         self.name_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
-        ctk.CTkLabel(form_frame, text="Horas (HH:MM, ...):").grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        self.times_entry = ctk.CTkEntry(form_frame, placeholder_text="Ej: 08:00, 20:00")
-        self.times_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        ctk.CTkLabel(form_frame, text="Cantidad:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        self.cantidad_entry = ctk.CTkEntry(form_frame, placeholder_text="Ej: 2 pastillas, 500ml, 1/2 tableta")
+        self.cantidad_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
 
-        ctk.CTkLabel(form_frame, text="Días:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        ctk.CTkLabel(form_frame, text="Prescripción:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        self.prescripcion_textbox = ctk.CTkTextbox(form_frame, height=80)
+        self.prescripcion_textbox.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+        self.prescripcion_textbox.insert("1.0", "Ej: Tomar después del almuerzo con estómago lleno")
+
+        ctk.CTkLabel(form_frame, text="Horas (HH:MM, ...):").grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        self.times_entry = ctk.CTkEntry(form_frame, placeholder_text="Ej: 08:00, 20:00")
+        self.times_entry.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
+
+        ctk.CTkLabel(form_frame, text="Días:").grid(row=4, column=0, padx=5, pady=5, sticky="w")
         self.days_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
-        self.days_frame.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+        self.days_frame.grid(row=4, column=1, padx=5, pady=5, sticky="ew")
         
         self.day_vars = {}
         days = {"Lunes": "mon", "Martes": "tue", "Miércoles": "wed", "Jueves": "thu", "Viernes": "fri", "Sábado": "sat", "Domingo": "sun"}
@@ -53,8 +62,9 @@ class ReminderTab(ctk.CTkFrame):
         
         all_reminders = reminders.list_reminders()
         for rem in all_reminders:
-            # --- CORRECCIÓN CLAVE ---
-            rem_text = f"{rem['medication_name']} - {rem['times']} - {rem['days_of_week']}"
+            # Mostrar información mejorada incluyendo cantidad
+            cantidad_text = f" ({rem.get('cantidad', 'Sin cantidad')})" if rem.get('cantidad') else ""
+            rem_text = f"{rem['medication_name']}{cantidad_text} - {rem['times']} - {rem['days_of_week']}"
             btn = ctk.CTkButton(self.scrollable_frame, text=rem_text, fg_color="gray20", 
                                       command=lambda rid=rem['id']: self.select_reminder(rid))
             btn.pack(fill="x", pady=2, padx=2)
@@ -68,21 +78,33 @@ class ReminderTab(ctk.CTkFrame):
 
     def add_reminder(self):
         name = self.name_entry.get()
+        cantidad = self.cantidad_entry.get().strip()
+        prescripcion = self.prescripcion_textbox.get("1.0", "end-1c").strip()
         times = self.times_entry.get()
         
         selected_days = [var.get() for var in self.day_vars.values() if var.get() != "off"]
         days_str = ",".join(selected_days)
         
+        # Limpiar texto placeholder si está presente
+        if prescripcion == "Ej: Tomar después del almuerzo con estómago lleno":
+            prescripcion = ""
+        
         if name and times and days_str:
-            reminders.add_reminder(name, "", times, days_str) # "" para photo_path
+            # Pasar los nuevos campos a la función (cantidad y prescripción pueden estar vacíos)
+            reminders.add_reminder(name, "", times, days_str, cantidad, prescripcion)
             self.load_reminders()
             self.controller.update_scheduler()
+            
+            # Limpiar campos
             self.name_entry.delete(0, "end")
+            self.cantidad_entry.delete(0, "end")
+            self.prescripcion_textbox.delete("1.0", "end")
+            self.prescripcion_textbox.insert("1.0", "Ej: Tomar después del almuerzo con estómago lleno")
             self.times_entry.delete(0, "end")
             for var in self.day_vars.values():
                 var.set("off")
         else:
-            messagebox.showwarning("Faltan datos", "Completa todos los campos.")
+            messagebox.showwarning("Faltan datos", "Completa al menos Medicamento, Horas y Días.")
 
     def delete_reminder(self):
         if self.selected_reminder_id is not None:

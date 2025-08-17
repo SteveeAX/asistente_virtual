@@ -7,14 +7,43 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
 PIN_BOTON = 17
-HOLD_TIME_SECONDS = 2.5
-TRIPLE_PRESS_WINDOW = 2 # Ventana de tiempo para la triple pulsación
-SINGLE_PRESS_DELAY = 0.7 # Tiempo de espera para confirmar una pulsación corta
+HOLD_TIME_SECONDS = 5.0  # Aumentado para cuidadores (evitar activación accidental)
+TRIPLE_PRESS_WINDOW = 2  # Para apagar Pi (solo cuidadores)
+SINGLE_PRESS_DELAY = 0.3  # Reducido para respuesta más rápida
 
-# Variables globales
+# Variables globales para el estado de confirmación
 _button = None
 _press_timestamps = []
 _single_press_timer = None
+_medication_confirmation_mode = False
+_medication_callback = None
+
+# --- NUEVAS FUNCIONES PARA CONFIRMACIÓN DE MEDICAMENTOS ---
+def set_medication_confirmation_mode(medication_callback):
+    """
+    Activa el modo de confirmación de medicamento.
+    En este modo, el botón SOLO responde a confirmación de medicamento.
+    """
+    global _medication_confirmation_mode, _medication_callback
+    _medication_confirmation_mode = True
+    _medication_callback = medication_callback
+    logger.info("BUTTON_MANAGER: Modo confirmación de medicamento ACTIVADO")
+
+def exit_medication_confirmation_mode():
+    """
+    Desactiva el modo de confirmación de medicamento.
+    El botón vuelve a sus funciones normales para cuidadores.
+    """
+    global _medication_confirmation_mode, _medication_callback
+    _medication_confirmation_mode = False
+    _medication_callback = None
+    logger.info("BUTTON_MANAGER: Modo confirmación de medicamento DESACTIVADO")
+
+def is_in_medication_confirmation_mode():
+    """
+    Retorna True si está en modo confirmación de medicamento.
+    """
+    return _medication_confirmation_mode
 
 def start_button_listener(press_callback, hold_callback, triple_press_callback):
     """
@@ -50,7 +79,7 @@ def _handle_press(press_callback, triple_press_callback):
     Gestiona cada pulsación, cancela el temporizador de pulsación corta,
     y comprueba si se ha completado una triple pulsación.
     """
-    global _press_timestamps, _single_press_timer
+    global _press_timestamps, _single_press_timer, _medication_confirmation_mode
     
     # Si hay un temporizador de pulsación corta esperando, lo cancelamos
     if _single_press_timer is not None:
@@ -59,12 +88,19 @@ def _handle_press(press_callback, triple_press_callback):
         
     current_time = time.time()
     
+    # Si estamos en modo confirmación, simplificar: solo pulsación simple
+    if _medication_confirmation_mode:
+        logger.info("BUTTON_MANAGER: Pulsación en modo confirmación de medicamento")
+        _execute_single_press(press_callback)
+        return
+    
+    # Lógica normal para cuidadores (cuando NO hay medicamento pendiente)
     # Limpiamos timestamps viejos
     _press_timestamps = [t for t in _press_timestamps if current_time - t < TRIPLE_PRESS_WINDOW]
     _press_timestamps.append(current_time)
     
     if len(_press_timestamps) >= 3:
-        logger.info("BUTTON_MANAGER: ¡Triple pulsación detectada!")
+        logger.info("BUTTON_MANAGER: ¡Triple pulsación detectada! (Apagar Pi)")
         triple_press_callback()
         _press_timestamps.clear() # Reseteamos el contador
     else:
@@ -78,9 +114,20 @@ def _execute_single_press(press_callback):
     Esta función se ejecuta solo si el temporizador no fue cancelado.
     Significa que fue una pulsación corta y única.
     """
-    global _press_timestamps
-    logger.info("BUTTON_MANAGER: Pulsación corta confirmada.")
-    press_callback()
+    global _press_timestamps, _medication_confirmation_mode, _medication_callback
+    
+    # PRIORIDAD 1: Si estamos en modo confirmación de medicamento
+    if _medication_confirmation_mode and _medication_callback:
+        logger.info("BUTTON_MANAGER: Confirmación de medicamento recibida.")
+        _medication_callback()
+        # NO salimos del modo aquí - lo hará improved_app.py
+    else:
+        # PRIORIDAD 2: Funciones normales para cuidadores
+        logger.info("BUTTON_MANAGER: Pulsación corta normal (sin medicamento pendiente).")
+        # Para adultos mayores: no hacer nada visible
+        # Para cuidadores: pueden usar pulsación larga o triple
+        # press_callback()  # Comentado para evitar confusión
+    
     # Limpiamos los timestamps para la próxima secuencia
     _press_timestamps.clear()
 
@@ -90,21 +137,36 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
     
     def on_press():
-        print("-> ACCIÓN: Pulsación Corta (Emergencia)")
+        print("-> ACCIÓN: Pulsación Normal (Sin medicamento pendiente)")
     
     def on_hold():
-        print("-> ACCIÓN: Pulsación Larga (Reiniciar App)")
+        print("-> ACCIÓN: Pulsación Larga (Reiniciar App - Solo Cuidadores)")
 
     def on_triple_press():
-        print("-> ACCIÓN: Triple Pulsación (Apagar Pi)")
+        print("-> ACCIÓN: Triple Pulsación (Apagar Pi - Solo Cuidadores)")
+        
+    def on_medication_confirmed():
+        print("-> ACCIÓN: ¡Medicamento Confirmado!")
+        exit_medication_confirmation_mode()
 
-    print("--- Probando el Button Manager Avanzado ---")
-    print(f"- Pulsa una vez para la alerta (se confirmará después de {SINGLE_PRESS_DELAY}s).")
-    print(f"- Mantén presionado por {HOLD_TIME_SECONDS}s para reiniciar.")
-    print(f"- Pulsa tres veces rápido (en menos de {TRIPLE_PRESS_WINDOW}s) para apagar.")
+    print("--- Probando el Button Manager de Confirmación ---")
+    print(f"- Pulsación simple: Sin acción visible (adultos mayores)")
+    print(f"- Mantén presionado por {HOLD_TIME_SECONDS}s para reiniciar (cuidadores)")
+    print(f"- Pulsa tres veces rápido para apagar Pi (cuidadores)")
+    print("- Presiona 'm' para simular medicamento pendiente")
     print("Presiona Ctrl+C para salir.")
     
     try:
         start_button_listener(on_press, on_hold, on_triple_press)
+        
+        # Simulación interactiva
+        while True:
+            user_input = input("\nEscribe 'm' para simular medicamento: ")
+            if user_input.lower() == 'm':
+                print("🔵 MEDICAMENTO PENDIENTE - Presiona el botón para confirmar")
+                set_medication_confirmation_mode(on_medication_confirmed)
+            elif user_input.lower() == 'q':
+                break
+                
     except KeyboardInterrupt:
         print("\nPrueba finalizada.")

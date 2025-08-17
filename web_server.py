@@ -65,6 +65,8 @@ def get_reminders():
 def add_reminder_route():
     try:
         medication_name = request.form['medication_name']
+        cantidad = request.form.get('cantidad', '').strip()  # Nuevo campo opcional
+        prescripcion = request.form.get('prescripcion', '').strip()  # Nuevo campo opcional
         times = request.form['times']
         days_of_week = request.form['days_of_week']
         photo_path = ""
@@ -73,7 +75,10 @@ def add_reminder_route():
             filename = secure_filename(f"{int(time.time())}_{file.filename}")
             photo_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(photo_path)
-        reminders.add_reminder(medication_name, photo_path, times, days_of_week)
+        
+        # Pasar los nuevos campos a la función add_reminder
+        reminders.add_reminder(medication_name, photo_path, times, days_of_week, cantidad, prescripcion)
+        
         if os.path.exists(SETTINGS_FLAG_PATH): os.remove(SETTINGS_FLAG_PATH)
         with open(SETTINGS_FLAG_PATH, 'w') as f: f.write('update_scheduler')
         return jsonify({"success": True})

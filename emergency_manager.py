@@ -67,6 +67,59 @@ def send_emergency_alert(message: str, chat_id: str):
     alert_thread.start()
     return True # La función retorna inmediatamente
 
+def send_medication_alert(medication_name: str, user_name: str = "Usuario"):
+    """
+    Envía alerta de medicamento no confirmado a TODOS los contactos de emergencia.
+    Esta función se llama cuando el usuario NO confirma su medicamento en 5 minutos.
+    """
+    logger.info(f"MEDICATION_ALERT: Enviando alerta para medicamento '{medication_name}' de {user_name}")
+    
+    try:
+        # Importar aquí para evitar dependencias circulares
+        import reminders
+        
+        # Obtener todos los contactos de emergencia
+        all_contacts = reminders.list_contacts()
+        emergency_contacts = [contact for contact in all_contacts if contact.get('is_emergency', 0) == 1]
+        
+        if not emergency_contacts:
+            logger.warning("MEDICATION_ALERT: No hay contactos de emergencia configurados")
+            return False
+        
+        # Crear mensaje de alerta específico para medicamento
+        from datetime import datetime
+        current_time = datetime.now().strftime("%H:%M")
+        current_date = datetime.now().strftime("%d/%m/%Y")
+        
+        alert_message = f"""🚨 ALERTA MEDICAMENTO 🚨
+
+📍 {user_name} NO ha confirmado su medicamento:
+💊 {medication_name}
+
+🕐 Hora programada: {current_time}
+📅 Fecha: {current_date}
+
+⚠️ Han pasado más de 5 minutos sin confirmación.
+Por favor, verifica que esté bien."""
+        
+        # Enviar a todos los contactos de emergencia
+        alerts_sent = 0
+        for contact in emergency_contacts:
+            try:
+                chat_id = contact['contact_details']
+                send_emergency_alert(alert_message, chat_id)
+                alerts_sent += 1
+                logger.info(f"MEDICATION_ALERT: Alerta enviada a {contact['display_name']} ({chat_id})")
+            except Exception as e:
+                logger.error(f"MEDICATION_ALERT: Error enviando a {contact['display_name']}: {e}")
+        
+        logger.info(f"MEDICATION_ALERT: {alerts_sent}/{len(emergency_contacts)} alertas enviadas exitosamente")
+        return alerts_sent > 0
+        
+    except Exception as e:
+        logger.error(f"MEDICATION_ALERT: Error general enviando alertas de medicamento: {e}")
+        return False
+
 # --- Bloque de prueba ---
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -76,14 +129,21 @@ if __name__ == '__main__':
     CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
     USER_NAME = os.getenv("USER_NAME", "el usuario")
 
-    print("--- Probando el envío de alerta con audio ---")
+    print("--- Probando el envío de alertas ---")
+    
+    print("\n1. Prueba de alerta de emergencia general:")
     test_message = f"🚨 *ALERTA DE EMERGENCIA (PRUEBA)* 🚨\nSe ha solicitado ayuda para *{USER_NAME}*.\nA continuación se enviará un audio."
     
     if CHAT_ID:
         send_emergency_alert(test_message, CHAT_ID)
-        print("Proceso de alerta iniciado. Revisa tu Telegram.")
+        print("✅ Proceso de alerta iniciado. Revisa tu Telegram.")
         print(f"Se enviará un texto y luego un clip de audio de {RECORD_SECONDS} segundos.")
+        
+        print("\n2. Prueba de alerta de medicamento:")
+        send_medication_alert("Aspirina (PRUEBA)", USER_NAME)
+        print("✅ Proceso de alerta de medicamento iniciado")
+        
         # Esperamos un poco más para dar tiempo a que el hilo termine en la prueba
         time.sleep(RECORD_SECONDS + 5)
     else:
-        print("No se encontró TELEGRAM_CHAT_ID en tu archivo .env para la prueba.")
+        print("❌ No se encontró TELEGRAM_CHAT_ID en tu archivo .env para la prueba.")

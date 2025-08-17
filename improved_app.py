@@ -1,10 +1,25 @@
 import customtkinter as ctk
-import threading, queue, logging, time, os
+import threading, queue, logging, time, os, sys
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 
 # --- Módulos del Proyecto ---
 import reminders, tts_manager, stt_manager, intent_manager, wakeword_detector, button_manager, emergency_manager, smart_home_manager, gemini_manager, firestore_logger, system_actions
+
+# --- Módulos de IA Generativa ---
+# Agregar directorio modules al path para importaciones
+modules_path = os.path.join(os.path.dirname(__file__), 'modules')
+if modules_path not in sys.path:
+    sys.path.insert(0, modules_path)
+
+# Importar RouterCentral con manejo de errores
+try:
+    from generative.router_central import RouterCentral
+    ROUTER_AVAILABLE = True
+    logging.info("ROUTER: RouterCentral importado correctamente")
+except ImportError as e:
+    ROUTER_AVAILABLE = False
+    logging.warning(f"ROUTER: RouterCentral no disponible: {e}")
 from contact_tab_updated import ContactTab
 from reminder_tab_updated import ReminderTab
 from clock_interface import ClockInterface
@@ -15,6 +30,10 @@ SETTINGS_FLAG_PATH = os.path.join(os.path.dirname(__file__), "settings_updated.f
 
 # Configuraciones globales  
 ENABLE_AI_GENERATIVE = False     # Flag para IA generativa
+
+# Configuraciones del sistema unificado de confirmación de medicamentos
+MEDICATION_TIMEOUT = 300  # 5 minutos totales (sistema unificado)
+USER_NAME = "Usuario"  # Nombre del usuario para alertas
 
 class KataApp(ctk.CTk):
     def __init__(self):
@@ -27,6 +46,14 @@ class KataApp(ctk.CTk):
         self.selected_voice = reminders.get_setting('voice_name', 'es-US-Neural2-A')
         self.is_speaking_or_listening = threading.Lock()
         self.admin_mode = False
+        
+        # --- RouterCentral para IA Generativa ---
+        self.router_central = None
+        
+        # --- Estado del sistema unificado de confirmación de medicamentos ---
+        self.medication_confirmation_state = "NORMAL"  # NORMAL, MEDICATION_ACTIVE
+        self.current_medication_info = None
+        self.medication_timer = None
 
         
         # Cargar tema guardado (por defecto oscuro)
@@ -189,6 +216,10 @@ class KataApp(ctk.CTk):
     def initialize_backend_threads(self):
         wakeword_detector.init_porcupine()
         gemini_manager.start_new_chat_session()
+        
+        # --- Inicializar RouterCentral ---
+        self.initialize_router_central()
+        
         self.start_wakeword_thread()
         threading.Thread(target=button_manager.start_button_listener, args=(
             self.on_button_short_press,
@@ -212,6 +243,20 @@ class KataApp(ctk.CTk):
                 elif flag_content == 'update_scheduler':
                     self.after(0, self.reload_scheduler)
             time.sleep(3)
+
+    def initialize_router_central(self):
+        """Inicializa el RouterCentral para IA generativa"""
+        try:
+            if ROUTER_AVAILABLE:
+                # Crear RouterCentral con el intent_manager existente
+                self.router_central = RouterCentral(intent_manager)
+                logging.info("ROUTER: RouterCentral inicializado correctamente")
+            else:
+                logging.warning("ROUTER: RouterCentral no disponible, usando sistema clásico")
+                self.router_central = None
+        except Exception as e:
+            logging.error(f"ROUTER: Error inicializando RouterCentral: {e}")
+            self.router_central = None
 
     def reload_voice_setting(self):
         logging.info("SETTINGS_CHECKER: Se detectó cambio de voz.")
@@ -237,24 +282,39 @@ class KataApp(ctk.CTk):
 
     # --- Nuevas funciones para manejar los eventos del botón ---
     def on_button_short_press(self):
-        """Manejador para la pulsación corta (emergencia)."""
-        logging.info("BUTTON_MANAGER: Pulsación corta detectada, activando emergencia.")
-        # Llama a la función de emergencia que ya tenías
-        self.on_button_pressed()
+        """
+        Manejador para pulsación corta - YA NO ES EMERGENCIA.
+        Solo funciona para cuidadores cuando no hay medicamento pendiente.
+        """
+        # Esta función ya no hace nada visible para adultos mayores
+        # Solo logging para cuidadores/técnicos
+        logging.info("BUTTON_MANAGER: Pulsación corta (sin medicamento pendiente - sin acción visible)")
 
     def on_button_long_press(self):
-        """Manejador para la pulsación larga (reiniciar app)."""
-        logging.info("BUTTON_MANAGER: Pulsación larga detectada, reiniciando la aplicación.")
-        tts_manager.say("Reiniciando la aplicación.", self.selected_voice)
-        time.sleep(2) # Dar tiempo para que el mensaje de voz se complete
-        system_actions.restart_app()
+        """
+        Manejador para pulsación larga (SOLO CUIDADORES - reiniciar app).
+        Solo funciona cuando NO hay medicamento pendiente.
+        """
+        if self.medication_confirmation_state == "NORMAL":
+            logging.info("BUTTON_MANAGER: Pulsación larga - reiniciando aplicación (cuidadores)")
+            tts_manager.say("Reiniciando la aplicación.", self.selected_voice)
+            time.sleep(2)
+            system_actions.restart_app()
+        else:
+            logging.info("BUTTON_MANAGER: Pulsación larga ignorada - medicamento pendiente")
 
     def on_button_triple_press(self):
-        """Manejador para la triple pulsación (apagar Pi)."""
-        logging.info("BUTTON_MANAGER: Triple pulsación detectada, apagando el sistema.")
-        tts_manager.say("Apagando el sistema. Hasta luego.", self.selected_voice)
-        time.sleep(3) # Dar tiempo para el mensaje
-        system_actions.shutdown_pi()
+        """
+        Manejador para triple pulsación (SOLO CUIDADORES - apagar Pi).
+        Solo funciona cuando NO hay medicamento pendiente.
+        """
+        if self.medication_confirmation_state == "NORMAL":
+            logging.info("BUTTON_MANAGER: Triple pulsación - apagando sistema (cuidadores)")
+            tts_manager.say("Apagando el sistema. Hasta luego.", self.selected_voice)
+            time.sleep(3)
+            system_actions.shutdown_pi()
+        else:
+            logging.info("BUTTON_MANAGER: Triple pulsación ignorada - medicamento pendiente")
 
     def handle_conversation(self):
         def conversation_task():
@@ -278,7 +338,53 @@ class KataApp(ctk.CTk):
         threading.Thread(target=conversation_task, daemon=True).start()
 
     def process_command(self, text: str):
-        intent = intent_manager.parse_intent(text)
+        # Usar RouterCentral si está disponible, sino fallback al sistema clásico
+        if self.router_central:
+            try:
+                result = self.router_central.process_user_input(text)
+                
+                if result.get('success', False):
+                    intent = result.get('intent')
+                    response = result.get('response')
+                    route = result.get('route')
+                    
+                    # Log de la interacción basado en la ruta
+                    if route in ['generative', 'generative_personalized', 'generative_fallback']:
+                        # Log apropiado según el tipo de respuesta
+                        if route in ['generative', 'generative_personalized']:
+                            log_type = "ai_query_personalized" if route == 'generative_personalized' else "ai_query"
+                            firestore_logger.log_interaction(log_type, details={
+                                'transcription': text,
+                                'route': route,
+                                'intent': intent,
+                                'personalization': result.get('router_metadata', {}).get('personalization', {})
+                            })
+                        else:  # generative_fallback
+                            firestore_logger.log_interaction("command_not_understood", details={
+                                'transcription': text,
+                                'route': route,
+                                'fallback_reason': 'generative_api_error'
+                            })
+                        
+                        # Para respuestas generativas (incluye fallback), usar la respuesta directamente
+                        if response:
+                            tts_manager.say(response, self.selected_voice)
+                        return
+                    else:
+                        # Para ruta clásica, procesar intent como antes
+                        pass
+                else:
+                    # Error en router, usar fallback
+                    logging.warning(f"RouterCentral falló: {result.get('error')}")
+                    intent = intent_manager.parse_intent(text)
+            except Exception as e:
+                logging.error(f"Error en RouterCentral: {e}")
+                intent = intent_manager.parse_intent(text)
+        else:
+            # Fallback al sistema clásico original
+            intent = intent_manager.parse_intent(text)
+        
+        # Procesar intents clásicos
         if intent == "EMERGENCY_ALERT": self.on_button_pressed(from_voice=True)
         elif intent == "CONTACT_PERSON": self._handle_specific_contact(text)
         elif intent == "PLUG_ON": self._handle_plug_on()
@@ -302,12 +408,14 @@ class KataApp(ctk.CTk):
                     tts_manager.say("Comando no reconocido. Intenta con comandos específicos como 'qué hora es', 'recuérdame algo', o 'enciende el enchufe'.", self.selected_voice)
 
     def announce_reminder(self, reminder_info):
+        """
+        Sistema unificado de confirmación de medicamentos con pantalla azul (5 minutos).
+        """
         with self.is_speaking_or_listening:
-            # --- AÑADIR ESTA LÍNEA ---
             firestore_logger.log_interaction("reminder_triggered", details={'type': 'medication', 'name': reminder_info['medication_name']})
             
-            self.clock_interface.show_reminder(reminder_info)
-            tts_manager.say(f"Recordatorio. Es hora de tomar {reminder_info['medication_name']}", self.selected_voice)
+            # Iniciar sistema unificado
+            self.start_medication_alert(reminder_info)
 
     # --- NUEVA FUNCIÓN PARA ANUNCIAR TAREAS ---
     def announce_task(self, task_info):
@@ -319,6 +427,163 @@ class KataApp(ctk.CTk):
             # Para tareas, solo damos el aviso de voz, no mostramos nada en pantalla.
             tts_manager.say(f"Recordatorio de tarea. Es hora de {task_info['task_name']}", self.selected_voice)
     # --- FIN DE LA NUEVA FUNCIÓN ---
+
+    # ==============================================
+    # SISTEMA UNIFICADO DE CONFIRMACIÓN DE MEDICAMENTOS (PANTALLA AZUL - 5 MIN)
+    # ==============================================
+    
+    def start_medication_alert(self, medication_info):
+        """
+        Sistema unificado: Pantalla azul con toda la información (5 minutos).
+        """
+        logging.info(f"MEDICATION: Iniciando alerta unificada para {medication_info['medication_name']}")
+        
+        # Actualizar estado
+        self.medication_confirmation_state = "MEDICATION_ACTIVE"
+        self.current_medication_info = medication_info
+        
+        # Cancelar timers previos si existen
+        self._cancel_medication_timers()
+        
+        # Configurar botón para confirmación
+        button_manager.set_medication_confirmation_mode(self.handle_medication_confirmed)
+        
+        # Mostrar pantalla azul unificada
+        self.clock_interface.show_medication_alert(medication_info)
+        
+        # Crear mensaje de audio mejorado
+        audio_message = self._create_medication_audio_message(medication_info)
+        tts_manager.say(audio_message, self.selected_voice)
+        
+        # Timer para timeout (5 minutos total)
+        self.medication_timer = threading.Timer(MEDICATION_TIMEOUT, self.handle_medication_timeout)
+        self.medication_timer.start()
+        
+        logging.info(f"MEDICATION: Alerta unificada iniciada - timer de {MEDICATION_TIMEOUT}s activado")
+
+    def _create_medication_audio_message(self, medication_info):
+        """
+        Crea un mensaje de audio inteligente con cantidad y prescripción.
+        """
+        base_message = f"Recordatorio. Es hora de tomar"
+        
+        # Agregar cantidad si está disponible
+        cantidad = medication_info.get('cantidad', '')
+        if cantidad:
+            base_message += f" {cantidad} de"
+        
+        # Agregar nombre del medicamento
+        base_message += f" {medication_info['medication_name']}"
+        
+        # Agregar prescripción (solo parte clave para no hacer muy largo)
+        prescripcion = medication_info.get('prescripcion', '')
+        if prescripcion:
+            # Buscar palabras clave importantes
+            key_phrases = []
+            prescripcion_lower = prescripcion.lower()
+            
+            if 'después' in prescripcion_lower:
+                if 'almuerzo' in prescripcion_lower:
+                    key_phrases.append('después del almuerzo')
+                elif 'comida' in prescripcion_lower:
+                    key_phrases.append('después de comer')
+                elif 'cena' in prescripcion_lower:
+                    key_phrases.append('después de la cena')
+            elif 'antes' in prescripcion_lower:
+                if 'almuerzo' in prescripcion_lower:
+                    key_phrases.append('antes del almuerzo')
+                elif 'comida' in prescripcion_lower:
+                    key_phrases.append('antes de comer')
+            elif 'con comida' in prescripcion_lower or 'con estómago' in prescripcion_lower:
+                key_phrases.append('con comida')
+            elif 'sin comida' in prescripcion_lower or 'estómago vacío' in prescripcion_lower:
+                key_phrases.append('con el estómago vacío')
+            
+            if key_phrases:
+                base_message += f". Recuerda: {', '.join(key_phrases)}"
+        
+        return base_message
+
+    def handle_medication_confirmed(self):
+        """
+        Manejador cuando el usuario presiona el botón para confirmar medicamento.
+        """
+        # Verificar si estamos en modo de confirmación de medicamento
+        if self.medication_confirmation_state == "NORMAL":
+            logging.info("MEDICATION: Confirmación ignorada - no hay medicamento pendiente")
+            return
+            
+        medication_name = self.current_medication_info['medication_name'] if self.current_medication_info else "medicamento"
+        logging.info(f"MEDICATION: Confirmación recibida para {medication_name}")
+        
+        # Cancelar timer
+        self._cancel_medication_timers()
+        
+        # Logging de confirmación
+        firestore_logger.log_interaction("medication_confirmed", details={
+            'medication_name': medication_name,
+            'user_name': USER_NAME
+        })
+        
+        # Feedback de voz
+        tts_manager.say("Medicamento confirmado", self.selected_voice)
+        
+        # Volver a pantalla normal
+        self.clock_interface.hide_all_alerts()
+        
+        # Resetear estado
+        self._reset_medication_state()
+
+    def handle_medication_timeout(self):
+        """
+        Manejador cuando pasan los 5 minutos totales sin confirmación.
+        Envía alerta a contactos de emergencia.
+        """
+        # Verificar si todavía estamos en estado de medicamento (evitar timeouts duplicados)
+        if self.medication_confirmation_state == "NORMAL":
+            logging.info("MEDICATION: Timeout cancelado - medicamento ya fue confirmado")
+            return
+            
+        medication_name = self.current_medication_info['medication_name'] if self.current_medication_info else "medicamento"
+        logging.warning(f"MEDICATION: Timeout para {medication_name} - enviando alerta de emergencia")
+        
+        # Logging de timeout
+        firestore_logger.log_interaction("medication_timeout_alert", details={
+            'medication_name': medication_name,
+            'user_name': USER_NAME,
+            'timeout_minutes': MEDICATION_TIMEOUT / 60
+        })
+        
+        # Enviar alerta a contactos de emergencia
+        try:
+            emergency_manager.send_medication_alert(medication_name, USER_NAME)
+            logging.info("MEDICATION: Alerta de emergencia enviada exitosamente")
+        except Exception as e:
+            logging.error(f"MEDICATION: Error enviando alerta de emergencia: {e}")
+        
+        # Usar self.after para actualizar la UI desde el hilo principal
+        self.after(0, lambda: self.clock_interface.hide_all_alerts())
+        
+        # Resetear estado
+        self._reset_medication_state()
+
+    def _cancel_medication_timers(self):
+        """Cancela el timer de medicamento activo."""
+        if self.medication_timer and self.medication_timer.is_alive():
+            self.medication_timer.cancel()
+            self.medication_timer = None
+            logging.info("MEDICATION: Timer cancelado")
+
+    def _reset_medication_state(self):
+        """Resetea el estado del sistema de confirmación de medicamentos."""
+        self.medication_confirmation_state = "NORMAL"
+        self.current_medication_info = None
+        button_manager.exit_medication_confirmation_mode()
+        logging.info("MEDICATION: Estado reseteado a NORMAL")
+
+    # ==============================================
+    # FIN DEL SISTEMA UNIFICADO DE CONFIRMACIÓN DE MEDICAMENTOS
+    # ==============================================
 
     # --- CAMBIO: update_scheduler ahora lee ambas tablas ---
     def update_scheduler(self):

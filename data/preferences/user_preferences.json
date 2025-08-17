@@ -1,0 +1,200 @@
+{
+  "usuario": {
+    "nombre": "Francisca",
+    "edad": 69,
+    "ciudad": "Quevedo",
+    "timezone": "America/Guayaquil",
+    "idioma_preferido": "es",
+    "modo_verbose": false
+  },
+  "intereses": {
+    "hobbies_principales": [
+      "cuidar_plantas_interior",
+      "tejido_croche", 
+      "bordado_costura",
+      "ver_telenovelas",
+      "escuchar_musica_juventud",
+      "caminar",
+      "jugar_naipes"
+    ],
+    "plantas_conoce": [
+      "hoja de aire",
+      "sábila", 
+      "toronjil",
+      "jamaica",
+      "hierbaluisa",
+      "orégano",
+      "perejil"
+    ],
+    "comidas_favoritas": [
+      "caldo de bola",
+      "chupe de pescado", 
+      "menestrón de carne",
+      "tallarín",
+      "sopa de pollo",
+      "locro de legumbre",
+      "chuleta ahumada"
+    ],
+    "entretenimiento": [
+      "telenovelas",
+      "noticias_locales"
+    ],
+    "musica_preferida": [
+      "música de juventud",
+      "boleros",
+      "baladas", 
+      "pasillos ecuatorianos"
+    ],
+    "actividades_sociales": [
+      "juegos_naipes",
+      "actividades_religiosas"
+    ]
+  },
+  "mascotas": {
+    "tiene_mascotas": true,
+    "tipo": "perros",
+    "nombres": ["Coco", "Troy"]
+  },
+  "religion": {
+    "practica": true,
+    "tipo": "católica"
+  },
+  "comunicacion": {
+    "temas_conversacion_favoritos": [
+      "recuerdos_juventud",
+      "familia_nietos", 
+      "cocina_recetas",
+      "consejos_vida",
+      "cosas_casa_familia"
+    ],
+    "estilo_respuesta": "amigable_personal",
+    "incluir_referencias_personales": true,
+    "nivel_detalle": "medio"
+  },
+  "contexto_cultural": {
+    "pais": "Ecuador",
+    "region": "Santo Domingo de los Tsáchilas", 
+    "tradiciones_conoce": [
+      "cocina_ecuatoriana_tradicional",
+      "plantas_medicinales_locales",
+      "pasillos_ecuatorianos"
+    ]
+  },
+  "configuracion_ai": {
+    "usar_generativa": true,
+    "personalizar_respuestas": true,
+    "incluir_nombres_mascotas": true,
+    "mencionar_intereses": true,
+    "estilo_conversacion": "cercano_respetuoso",
+    "complejidad_maxima": 3,
+    "timeout_respuesta": 30
+  },
+  "ejemplos_personalizacion": {
+    "cuando_hablar_plantas": {
+      "incluir": ["sábila para quemaduras", "toronjil para el estómago", "hierbaluisa para relajar"],
+      "contexto": "plantas_medicinales_que_conoce"
+    },
+    "cuando_hablar_comida": {
+      "incluir": ["como_hace_caldo_bola", "receta_chupe_pescado", "secretos_locro"],
+      "contexto": "comidas_tradicionales_favoritas"
+    },
+    "cuando_hablar_entretenimiento": {
+      "incluir": ["telenovelas_actuales", "noticias_Ecuador"],
+      "contexto": "entretenimiento_preferido"
+    },
+    "cuando_hablar_mascotas": {
+      "incluir": ["preguntarle_por_Coco_Troy", "consejos_cuidado_perros"],
+      "contexto": "tiene_dos_perros"
+    },
+    "frases_cercanas": [
+      "Como tú que sabes de plantas...",
+      "Seguro que en tu cocina preparas un delicioso...", 
+      "¿Cómo están Coco y Troy?",
+      "Con tu experiencia en...",
+      "Como buena ecuatoriana..."
+    ]
+  },
+  "asistente": {
+    "personalidad": "amigable_profesional",
+    "usar_emojis": false,
+    "respuestas_cortas": true,
+    "confirmacion_antes_acciones": true
+  },
+  "ia_generativa": {
+    "habilitada": false,
+    "proveedor_preferido": "gemini",
+    "modelo_backup": "gpt-3.5-turbo",
+    "confianza_minima_clasica": 0.85,
+    "max_tokens_respuesta": 150,
+    "temperatura": 0.3,
+    "usar_contexto_conversacion": true,
+    "recordar_preferencias": true
+  },
+  "comandos_clasicos": {
+    "siempre_preferir": [
+      "recordatorio",
+      "medicacion", 
+      "contacto_emergencia",
+      "fecha",
+      "hora",
+      "enchufe"
+    ],
+    "nunca_derivar_ia": [
+      "emergencia",
+      "medicacion_critica",
+      "sistema_apagar"
+    ]
+  },
+  "filtros_contenido": {
+    "bloquear_contenido_inapropiado": true,
+    "temas_prohibidos": [
+      "informacion_medica_especifica",
+      "consejos_financieros",
+      "informacion_personal_sensible"
+    ],
+    "longitud_maxima_respuesta": 200
+  },
+  "aprendizaje": {
+    "recordar_patrones_usuario": true,
+    "adaptar_respuestas": true,
+    "sugerir_mejoras": false,
+    "guardar_interacciones_exitosas": true
+  },
+  "integracion_sistema": {
+    "logs_detallados": true,
+    "metricas_rendimiento": true,
+    "alertas_errores": true,
+    "respaldo_automatico_config": true
+  },
+  "horarios_disponibilidad": {
+    "ia_generativa_activa": {
+      "lunes": {"inicio": "08:00", "fin": "22:00"},
+      "martes": {"inicio": "08:00", "fin": "22:00"},
+      "miercoles": {"inicio": "08:00", "fin": "22:00"},
+      "jueves": {"inicio": "08:00", "fin": "22:00"},
+      "viernes": {"inicio": "08:00", "fin": "22:00"},
+      "sabado": {"inicio": "09:00", "fin": "21:00"},
+      "domingo": {"inicio": "09:00", "fin": "21:00"}
+    },
+    "modo_solo_clasico": {
+      "inicio": "22:00",
+      "fin": "08:00"
+    }
+  },
+  "contexto_asistente": {
+    "soy_asistente_kata": true,
+    "ejecuto_en": "raspberry_pi_5",
+    "mis_capacidades": [
+      "recordatorios_medicacion",
+      "gestion_tareas",
+      "contactos_emergencia", 
+      "control_dispositivos",
+      "respuestas_inteligentes"
+    ],
+    "ubicacion": "hogar_usuario",
+    "proposito": "asistencia_personal_integral"
+  },
+  "version_config": "1.0.0",
+  "fecha_creacion": "2024-08-16",
+  "ultima_actualizacion": "2024-08-16"
+}
