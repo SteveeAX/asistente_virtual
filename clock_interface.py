@@ -30,42 +30,20 @@ class ClockInterface(ctk.CTkFrame):
         self.status_label.grid(row=2, column=0, sticky="n", pady=20)
 
         # --- Contenedor Unificado para Alertas de Medicamento (Pantalla Azul) ---
-        self.medication_frame = ctk.CTkFrame(self, fg_color="#2E86AB")
-        self.medication_frame.grid_rowconfigure((0, 1, 2, 3, 4), weight=1)
+        self.medication_frame = ctk.CTkFrame(self, fg_color="#1E5A8A")  # Azul más intenso y vibrante
+        self.medication_frame.grid_rowconfigure(0, weight=0)  # Mensaje arriba - espacio fijo
+        self.medication_frame.grid_rowconfigure(1, weight=1)  # Imagen - espacio flexible (mayoría)
         self.medication_frame.grid_columnconfigure(0, weight=1)
 
-        # Título principal
-        self.med_title = ctk.CTkLabel(self.medication_frame, text="🚨 MEDICAMENTO 🚨", 
-                                     font=ctk.CTkFont(family="Arial", size=70, weight="bold"), text_color="white")
-        self.med_title.grid(row=0, column=0, pady=(20, 10))
+        # Mensaje dinámico simplificado (reemplaza título + nombre + detalles)
+        self.med_message_label = ctk.CTkLabel(self.medication_frame, text="", 
+                                            font=ctk.CTkFont(family="Arial", size=65, weight="bold"), 
+                                            text_color="white", wraplength=1200)
+        self.med_message_label.grid(row=0, column=0, pady=(30, 20), sticky="ew")
         
-        # Nombre del medicamento
-        self.med_name_label = ctk.CTkLabel(self.medication_frame, text="", 
-                                          font=ctk.CTkFont(family="Arial", size=55, weight="bold"), text_color="yellow")
-        self.med_name_label.grid(row=1, column=0, pady=(10, 20))
-        
-        # Contenedor para detalles (cantidad y prescripción)
-        self.details_frame = ctk.CTkFrame(self.medication_frame, fg_color="transparent")
-        self.details_frame.grid(row=2, column=0, pady=(0, 20), sticky="ew")
-        self.details_frame.grid_columnconfigure(0, weight=1)
-        
-        self.cantidad_label = ctk.CTkLabel(self.details_frame, text="", 
-                                          font=ctk.CTkFont(family="Arial", size=35, weight="bold"), text_color="lightblue")
-        self.cantidad_label.grid(row=0, column=0, pady=5)
-        
-        self.prescripcion_label = ctk.CTkLabel(self.details_frame, text="", 
-                                              font=ctk.CTkFont(family="Arial", size=30), text_color="lightgreen", 
-                                              wraplength=800)  # Permite texto en múltiples líneas
-        self.prescripcion_label.grid(row=1, column=0, pady=5)
-        
-        # Imagen del medicamento
+        # Imagen del medicamento (ocupa la mayor parte del espacio)
         self.med_img_label = ctk.CTkLabel(self.medication_frame, text="")
-        self.med_img_label.grid(row=3, column=0, pady=20, sticky="nsew")
-        
-        # Instrucción para confirmar
-        self.confirm_instruction = ctk.CTkLabel(self.medication_frame, text="PRESIONA EL BOTÓN PARA CONFIRMAR", 
-                                               font=ctk.CTkFont(family="Arial", size=40, weight="bold"), text_color="white")
-        self.confirm_instruction.grid(row=4, column=0, pady=(20, 30))
+        self.med_img_label.grid(row=1, column=0, pady=(0, 30), sticky="nsew")
 
         # Variable para rastrear timers activos
         self.active_timer = None
@@ -130,6 +108,27 @@ class ClockInterface(ctk.CTkFrame):
         new_height = int(img_height * scale_ratio)
         
         return new_width, new_height
+    
+    def _create_dynamic_message(self, reminder_info):
+        """
+        Crea un mensaje dinámico usando variables de la base de datos.
+        Formato: "Es hora de tomarte [cantidad] de [medicamento]"
+        """
+        medicamento = reminder_info['medication_name']
+        cantidad = reminder_info.get('cantidad', '')
+        prescripcion = reminder_info.get('prescripcion', '')
+        
+        # Mensaje base
+        if cantidad:
+            message = f"Es hora de tomarte {cantidad} de {medicamento}"
+        else:
+            message = f"Es hora de tomarte {medicamento}"
+        
+        # Agregar prescripción solo si está disponible y es corta
+        if prescripcion and len(prescripcion) <= 50:
+            message += f"\n{prescripcion}"
+        
+        return message
 
     def show_medication_alert(self, reminder_info):
         """Mostrar la pantalla azul unificada de medicamento con toda la información"""
@@ -144,37 +143,24 @@ class ClockInterface(ctk.CTkFrame):
         self.main_frame.pack_forget()
         self.medication_frame.pack(fill="both", expand=True)
 
-        # Configurar nombre del medicamento
-        self.med_name_label.configure(text=reminder_info['medication_name'])
-        
-        # Configurar cantidad
-        cantidad = reminder_info.get('cantidad', '')
-        if cantidad:
-            self.cantidad_label.configure(text=f"💊 Cantidad: {cantidad}")
-        else:
-            self.cantidad_label.configure(text="")
-        
-        # Configurar prescripción
-        prescripcion = reminder_info.get('prescripcion', '')
-        if prescripcion:
-            self.prescripcion_label.configure(text=f"📋 {prescripcion}")
-        else:
-            self.prescripcion_label.configure(text="")
+        # Crear mensaje dinámico
+        message = self._create_dynamic_message(reminder_info)
+        self.med_message_label.configure(text=message)
 
-        # Configurar imagen
+        # Configurar imagen del medicamento (ahora con mayor espacio disponible)
         photo_path = reminder_info.get("photo_path")
         if photo_path and os.path.exists(photo_path):
             try:
                 # Forzar la actualización del frame para obtener dimensiones reales
                 self.medication_frame.update_idletasks()
                 
-                # Calcular espacio disponible para la imagen (más conservador debido a más contenido)
-                available_width = self.winfo_screenwidth() - 200  # Más margen
-                available_height = self.winfo_screenheight() - 600  # Espacio para título, detalles e instrucción
+                # Más espacio para la imagen al simplificar el diseño
+                available_width = self.winfo_screenwidth() - 100  # Menos margen
+                available_height = self.winfo_screenheight() - 300  # Solo espacio para mensaje arriba
                 
                 # Asegurar dimensiones mínimas
-                available_width = max(available_width, 300)
-                available_height = max(available_height, 200)
+                available_width = max(available_width, 400)
+                available_height = max(available_height, 400)
                 
                 logger.info(f"Dimensiones disponibles para imagen: {available_width}x{available_height}")
                 

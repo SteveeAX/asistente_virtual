@@ -62,11 +62,17 @@ class RouterCentral:
                 from .generative_route import GenerativeRoute
                 self.generative_route = GenerativeRoute()
                 logger.info("RouterCentral: GenerativeRoute inicializada automáticamente")
+                
+                # Inicializar memoria conversacional
+                self._initialize_conversation_memory()
+                
             except ImportError as e:
                 logger.warning(f"RouterCentral: No se pudo inicializar GenerativeRoute: {e}")
                 self.generative_route = None
         else:
             self.generative_route = generative_manager
+            # Inicializar memoria conversacional para manager externo también
+            self._initialize_conversation_memory()
         
         # Cargar configuración de usuario
         self.user_preferences = self._load_user_preferences()
@@ -118,22 +124,59 @@ class RouterCentral:
         logger.info(f"Confianza mínima clásica: {self.min_classic_confidence}")
         logger.info(f"Comandos siempre clásicos: {len(self.always_classic_commands)}")
     
-    def _load_user_preferences(self) -> Dict[str, Any]:
-        """Carga las preferencias del usuario desde archivo JSON"""
+    def _initialize_conversation_memory(self):
+        """Inicializa la memoria conversacional en GenerativeRoute"""
+        if not self.generative_route:
+            return
+        
         try:
-            preferences_path = os.path.join(
-                os.path.dirname(__file__), 
-                '../../data/preferences/user_preferences.json'
-            )
+            # Obtener ruta de BD del usuario actual desde user_manager
+            import sys
+            sys.path.append(os.path.join(os.path.dirname(__file__), '../../database'))
+            from models.user_manager import user_manager
             
-            if os.path.exists(preferences_path):
-                with open(preferences_path, 'r', encoding='utf-8') as f:
-                    preferences = json.load(f)
-                logger.info("Preferencias de usuario cargadas correctamente")
-                return preferences
+            user_db_path = str(user_manager.get_user_database_path())
+            
+            # Inicializar memoria en GenerativeRoute
+            if hasattr(self.generative_route, 'initialize_memory'):
+                self.generative_route.initialize_memory(user_db_path)
+                logger.info("RouterCentral: Memoria conversacional inicializada")
             else:
-                logger.warning(f"Archivo de preferencias no encontrado: {preferences_path}")
-                return self._get_default_preferences()
+                logger.warning("RouterCentral: GenerativeRoute no soporta memoria conversacional")
+                
+        except Exception as e:
+            logger.error(f"RouterCentral: Error inicializando memoria conversacional: {e}")
+    
+    def _load_user_preferences(self) -> Dict[str, Any]:
+        """Carga las preferencias del usuario desde la base de datos multi-usuario"""
+        try:
+            # Intentar cargar desde sistema multi-usuario
+            try:
+                import sys
+                sys.path.append(os.path.join(os.path.dirname(__file__), '../../database'))
+                from models.user_manager import user_manager
+                
+                # Obtener preferencias del usuario actual
+                preferences = user_manager.get_user_preferences()
+                logger.info(f"Preferencias cargadas desde BD para usuario: {user_manager.current_user}")
+                return preferences
+                
+            except ImportError:
+                logger.warning("Sistema multi-usuario no disponible, usando JSON legacy")
+                # Fallback a JSON si el sistema multi-usuario no está disponible
+                preferences_path = os.path.join(
+                    os.path.dirname(__file__), 
+                    '../../data/preferences/user_preferences.json'
+                )
+                
+                if os.path.exists(preferences_path):
+                    with open(preferences_path, 'r', encoding='utf-8') as f:
+                        preferences = json.load(f)
+                    logger.info("Preferencias de usuario cargadas desde JSON legacy")
+                    return preferences
+                else:
+                    logger.warning(f"Archivo de preferencias no encontrado: {preferences_path}")
+                    return self._get_default_preferences()
                 
         except Exception as e:
             logger.error(f"Error cargando preferencias: {e}")
@@ -343,15 +386,25 @@ class RouterCentral:
     
     def _is_always_classic_command(self, user_text: str, classic_analysis: Dict) -> bool:
         """Verifica si el comando debe ir siempre por ruta clásica"""
-        # Verificar por intent detectado
+        # Verificar por intent detectado - esto es más preciso
         detected_intent = classic_analysis.get('intent')
-        if detected_intent and detected_intent in self.always_classic_commands:
-            return True
-        
-        # Verificar por palabras clave en el texto
-        user_text_lower = user_text.lower()
-        for command in self.always_classic_commands:
-            if command.lower() in user_text_lower:
+        if detected_intent:
+            # Mapear intents a comandos clásicos
+            intent_to_command = {
+                'GET_TIME': 'hora',
+                'GET_DATE': 'fecha',
+                'PLUG_ON': 'enchufe',
+                'PLUG_OFF': 'enchufe',
+                'CREATE_REMINDER': 'recordatorio',
+                'CREATE_DAILY_REMINDER': 'recordatorio',
+                'LIST_REMINDERS': 'recordatorio',
+                'DELETE_REMINDER': 'recordatorio',
+                'CONTACT_PERSON': 'contacto_emergencia',
+                'EMERGENCY_ALERT': 'emergencia'
+            }
+            
+            mapped_command = intent_to_command.get(detected_intent)
+            if mapped_command and mapped_command in self.always_classic_commands:
                 return True
         
         return False
@@ -560,3 +613,28 @@ class RouterCentral:
             }
             for m in self.decision_metrics[-limit:]
         ]
+    
+    def reload_user_context(self):
+        """
+        Recarga el contexto del usuario cuando cambia el usuario activo.
+        
+        Este método actualiza las preferencias del usuario y recarga el contexto
+        en la ruta generativa para asegurar personalización correcta.
+        """
+        try:
+            # Recargar preferencias del usuario
+            self.user_preferences = self._load_user_preferences()
+            logger.info("RouterCentral: Preferencias de usuario recargadas")
+            
+            # Recargar contexto en la ruta generativa si está disponible
+            if self.generative_route and hasattr(self.generative_route, 'reload_user_context'):
+                self.generative_route.reload_user_context()
+                logger.info("RouterCentral: Contexto de ruta generativa recargado")
+            
+            # Reinicializar memoria conversacional para el nuevo usuario
+            self._initialize_conversation_memory()
+            
+            logger.info("RouterCentral: Recarga de contexto de usuario completada")
+            
+        except Exception as e:
+            logger.error(f"RouterCentral: Error recargando contexto de usuario: {e}")

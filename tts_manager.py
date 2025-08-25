@@ -14,6 +14,11 @@ def say(text: str, voice_name: str = None):
     """Genera y reproduce audio usando una voz específica."""
     selected_voice = voice_name if voice_name else DEFAULT_VOICE
     language_code = "-".join(selected_voice.split("-")[:2])
+    
+    # LOG DE RESPUESTA DEL ASISTENTE
+    logger.info(f"ASISTENTE_RESPUESTA: {text}")
+    print(f"🔊 RESPUESTA: {text}")  # También mostrar en consola
+    
     logger.info(f"TTS: Generando audio con la voz: {selected_voice}")
     try:
         synthesis_input = texttospeech.SynthesisInput(text=text)

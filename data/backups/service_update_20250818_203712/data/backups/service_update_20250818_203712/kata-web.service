@@ -1,0 +1,13 @@
+[Unit]
+Description=Kata Assistant Web Server
+After=network.target
+
+[Service]
+Type=simple
+User=steveen
+WorkingDirectory=/home/steveen/asistente_kata
+ExecStart=/home/steveen/gcp-tts-venv/bin/python3 web_server.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

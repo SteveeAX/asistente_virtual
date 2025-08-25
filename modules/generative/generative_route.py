@@ -20,6 +20,7 @@ from typing import Dict, Any, Optional
 from .gemini_api_manager import GeminiAPIManager
 from .context_enricher import ContextEnricher
 from .prompt_builder import PromptBuilder
+from .conversation_memory import ConversationMemory
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ Responde de forma amable y respetuosa.
 """
     
     def __init__(self):
-        """Inicializa la ruta generativa con personalización"""
+        """Inicializa la ruta generativa con personalización y memoria"""
         self.gemini_manager = GeminiAPIManager()
         self.enabled = self._is_enabled()
         
@@ -51,6 +52,9 @@ Responde de forma amable y respetuosa.
         self.context_enricher = ContextEnricher()
         self.prompt_builder = PromptBuilder()
         self.personalization_enabled = self._is_personalization_enabled()
+        
+        # Memoria conversacional (se inicializa por usuario)
+        self.conversation_memory = None
         
         # Estadísticas expandidas
         self.stats = {
@@ -77,6 +81,20 @@ Responde de forma amable y respetuosa.
         # Por defecto habilitada si la ruta generativa está activa
         personalization_env = os.getenv('PERSONALIZATION_ENABLED', 'true').lower()
         return personalization_env in ['true', '1', 'yes', 'on'] and self.enabled
+    
+    def initialize_memory(self, user_db_path: str):
+        """
+        Inicializa la memoria conversacional para el usuario actual.
+        
+        Args:
+            user_db_path: Ruta a la base de datos del usuario actual
+        """
+        try:
+            self.conversation_memory = ConversationMemory(user_db_path)
+            logger.info(f"Memoria conversacional inicializada para: {user_db_path}")
+        except Exception as e:
+            logger.error(f"Error inicializando memoria conversacional: {e}")
+            self.conversation_memory = None
     
     def is_available(self) -> bool:
         """Verifica si la ruta generativa está disponible para usar"""
@@ -129,10 +147,17 @@ Responde de forma amable y respetuosa.
             # 1. Enriquecer contexto con personalización
             enriched_context = self.context_enricher.enrich_context(user_input)
             
-            # 2. Construir prompt personalizado
-            personalized_prompt = self.prompt_builder.build_personalized_prompt(user_input, enriched_context)
+            # 2. Obtener contexto de memoria si está disponible
+            memory_context = None
+            if self.conversation_memory:
+                memory_context = self.conversation_memory.get_memory_context(user_input)
             
-            # 3. Generar respuesta con Gemini
+            # 3. Construir prompt personalizado con memoria
+            personalized_prompt = self.prompt_builder.build_personalized_prompt(
+                user_input, enriched_context, memory_context
+            )
+            
+            # 4. Generar respuesta con Gemini
             gemini_result = self.gemini_manager.generate_response(personalized_prompt)
             
             if gemini_result['success']:
@@ -142,6 +167,15 @@ Responde de forma amable y respetuosa.
                 response = self._format_personalized_response(
                     gemini_result, user_input, enriched_context
                 )
+                
+                # 5. Guardar intercambio en memoria conversacional
+                if self.conversation_memory:
+                    self.conversation_memory.save_interaction(
+                        user_input, 
+                        gemini_result['response'],
+                        enriched_context.domain,
+                        enriched_context.confidence
+                    )
                 
                 logger.info(f"GenerativeRoute: Respuesta personalizada generada (dominio: {enriched_context.domain})")
                 return response
@@ -181,6 +215,16 @@ Responde de forma amable y respetuosa.
             self.stats['basic_responses'] += 1
             
             response = self._format_response(gemini_result, user_input)
+            
+            # Guardar intercambio en memoria conversacional
+            if self.conversation_memory:
+                self.conversation_memory.save_interaction(
+                    user_input, 
+                    gemini_result['response'],
+                    'general',  # Dominio por defecto para modo básico
+                    0.8        # Confianza estándar para modo básico
+                )
+            
             logger.info("GenerativeRoute: Respuesta básica generada exitosamente")
             return response
         else:
@@ -384,3 +428,20 @@ Responde de forma amable y respetuosa.
         if self.gemini_manager:
             self.gemini_manager.reset_stats()
         logger.info("GenerativeRoute: Estadísticas reiniciadas (incluye personalización)")
+    
+    def reload_user_context(self):
+        """
+        Recarga el contexto del usuario cuando cambia el usuario activo.
+        
+        Este método actualiza las preferencias del usuario en el ContextEnricher
+        para asegurar que las respuestas generativas sean personalizadas para
+        el usuario actualmente activo.
+        """
+        try:
+            if hasattr(self, 'context_enricher'):
+                self.context_enricher.reload_user_preferences()
+                logger.info("GenerativeRoute: Contexto de usuario recargado exitosamente")
+            else:
+                logger.warning("GenerativeRoute: ContextEnricher no disponible para recarga")
+        except Exception as e:
+            logger.error(f"GenerativeRoute: Error recargando contexto de usuario: {e}")

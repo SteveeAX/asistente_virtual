@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Kata</title>
+    <style>
+        body { 
+            font-family: sans-serif; 
+            margin: 0; 
+            padding: 1em; 
+            background-color: #f4f4f9; 
+            color: #333; 
+        }
+        
+        h1, h2, h3 { 
+            color: #4a86e8; 
+            border-bottom: 2px solid #4a86e8; 
+            padding-bottom: 10px; 
+        }
+        
+        .container { 
+            max-width: 1200px; 
+            margin: auto; 
+        }
+        
+        /* === SISTEMA DE PESTAÑAS === */
+        .tab-container {
+            margin-bottom: 2em;
+        }
+        
+        .tab-buttons {
+            display: flex;
+            background-color: #e9e9e9;
+            border-radius: 8px 8px 0 0;
+            overflow: hidden;
+            box-shadow: 0 2px 3px rgba(0,0,0,0.1);
+        }
+        
+        .tab-button {
+            flex: 1;
+            padding: 15px 20px;
+            background-color: #e9e9e9;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            color: #666;
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
+        }
+        
+        .tab-button:hover {
+            background-color: #d4d4d4;
+            color: #333;
+        }
+        
+        .tab-button.active {
+            background-color: #4a86e8;
+            color: white;
+            border-bottom: 3px solid #2c5aa0;
+        }
+        
+        .tab-content {
+            display: none;
+            background-color: white;
+            padding: 2em;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            min-height: 500px;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* === ESTILOS GENERALES === */
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 1em; 
+            background-color: #fff; 
+            box-shadow: 0 2px 3px rgba(0,0,0,0.1); 
+        }
+        
+        th, td { 
+            border: 1px solid #ddd; 
+            padding: 12px; 
+            text-align: left; 
+        }
+        
+        th { 
+            background-color: #4a86e8; 
+            color: white; 
+        }
+        
+        .section { 
+            margin-bottom: 2em; 
+        }
+        
+        form { 
+            display: grid; 
+            grid-template-columns: auto 1fr; 
+            gap: 10px; 
+            margin-top: 1em; 
+            padding: 1em; 
+            background-color: #f8f9fa; 
+            border-radius: 8px;
+            box-shadow: 0 2px 3px rgba(0,0,0,0.1); 
+            align-items: start; 
+        }
+        
+        form label { 
+            font-weight: bold; 
+            text-align: right; 
+            padding-top: 10px; 
+        }
+        
+        form input, form button, form select, form textarea { 
+            padding: 10px; 
+            border: 1px solid #ccc; 
+            border-radius: 4px; 
+            font-family: inherit; 
+        }
+        
+        form textarea { 
+            resize: vertical; 
+            min-height: 60px; 
+        }
+        
+        form button { 
+            background-color: #28a745; 
+            color: white; 
+            grid-column: 2; 
+            cursor: pointer; 
+            transition: background-color 0.3s;
+        }
+        
+        form button:hover {
+            background-color: #218838;
+        }
+        
+        .delete-btn { 
+            background-color: #dc3545; 
+            color: white; 
+            border: none; 
+            padding: 5px 10px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            transition: background-color 0.3s;
+        }
+        
+        .delete-btn:hover {
+            background-color: #c82333;
+        }
+        
+        .day-selector { 
+            display: flex; 
+            gap: 10px; 
+            justify-content: flex-start; 
+        }
+        
+        /* === ESTILOS ESPECÍFICOS PARA USUARIOS === */
+        .user-card {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 1em;
+            margin-bottom: 1em;
+            transition: box-shadow 0.3s;
+        }
+        
+        .user-card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .user-card.current-user {
+            border-color: #4a86e8;
+            background-color: #e3f2fd;
+        }
+        
+        .user-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5em;
+        }
+        
+        .user-name {
+            font-weight: bold;
+            font-size: 1.1em;
+            color: #4a86e8;
+        }
+        
+        .user-stats {
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        .user-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+        
+        .btn-warning {
+            background-color: #ffc107;
+            color: #212529;
+        }
+        
+        .btn-warning:hover {
+            background-color: #e0a800;
+        }
+        
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background-color: #218838;
+        }
+        
+        .current-user-indicator {
+            display: inline-block;
+            background-color: #28a745;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            margin-left: 10px;
+        }
+        
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1em;
+            margin-bottom: 2em;
+        }
+        
+        .status-card {
+            background-color: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 1em;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .status-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #4a86e8;
+        }
+        
+        .status-label {
+            color: #666;
+            margin-top: 0.5em;
+        }
+        
+        /* === FORMULARIOS DE PREFERENCIAS === */
+        .preferences-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5em;
+            margin-top: 1em;
+        }
+        
+        .preference-category {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 1em;
+        }
+        
+        .preference-category h4 {
+            margin-top: 0;
+            color: #495057;
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 0.5em;
+        }
+        
+        .preference-item {
+            margin-bottom: 1em;
+        }
+        
+        .preference-item label {
+            display: block;
+            margin-bottom: 0.5em;
+            font-weight: 500;
+        }
+        
+        .preference-item input,
+        .preference-item select,
+        .preference-item textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        
+        /* === MENSAJES DE ESTADO === */
+        .alert {
+            padding: 12px 16px;
+            border-radius: 4px;
+            margin-bottom: 1em;
+            border: 1px solid transparent;
+        }
+        
+        .alert-success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        
+        .alert-error {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        
+        .alert-info {
+            background-color: #cce7ff;
+            border-color: #b8daff;
+            color: #004085;
+        }
+        
+        /* === RESPONSIVE === */
+        @media (max-width: 768px) {
+            .tab-buttons {
+                flex-direction: column;
+            }
+            
+            .status-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .preferences-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            form {
+                grid-template-columns: 1fr;
+            }
+            
+            form label {
+                text-align: left;
+                padding-top: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Gestor del Asistente Kata</h1>
+        
+        <!-- Status Bar -->
+        <div id="status-bar" style="background-color: #e8f4fd; padding: 10px; border-radius: 4px; margin-bottom: 1em; display: none;">
+            <span id="current-user-display">👤 Usuario: <strong>Cargando...</strong></span>
+            <span id="system-status" style="float: right;">🟢 Sistema: Activo</span>
+        </div>
+        
+        <!-- Pestañas Principales -->
+        <div class="tab-container">
+            <div class="tab-buttons">
+                <button class="tab-button active" onclick="showTab('usuarios')">👥 Usuarios</button>
+                <button class="tab-button" onclick="showTab('configuracion')">⚙️ Configuración</button>
+                <button class="tab-button" onclick="showTab('recordatorios')">💊 Recordatorios</button>
+                <button class="tab-button" onclick="showTab('tareas')">📝 Tareas</button>
+                <button class="tab-button" onclick="showTab('contactos')">👤 Contactos</button>
+            </div>
+            
+            <!-- === PESTAÑA DE USUARIOS === -->
+            <div id="usuarios-tab" class="tab-content active">
+                <h2>Administración de Usuarios</h2>
+                
+                <!-- Dashboard de Estado -->
+                <div class="status-grid">
+                    <div class="status-card">
+                        <div class="status-number" id="total-users">0</div>
+                        <div class="status-label">Total Usuarios</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="status-number" id="current-user-name">-</div>
+                        <div class="status-label">Usuario Actual</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="status-number" id="total-backups">0</div>
+                        <div class="status-label">Backups</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="status-number" id="user-preferences">0</div>
+                        <div class="status-label">Preferencias</div>
+                    </div>
+                </div>
+                
+                <!-- Lista de Usuarios -->
+                <div class="section">
+                    <h3>👥 Usuarios Registrados</h3>
+                    <div id="users-list">
+                        <!-- Se pobla dinámicamente -->
+                    </div>
+                </div>
+                
+                <!-- Crear Nuevo Usuario -->
+                <div class="section">
+                    <h3>➕ Crear Nuevo Usuario</h3>
+                    <form id="create-user-form">
+                        <label for="new-username">Nombre de Usuario:</label>
+                        <input type="text" id="new-username" pattern="[a-z0-9_]+" required placeholder="ej: maria_garcia">
+                        
+                        <label for="new-display-name">Nombre Completo:</label>
+                        <input type="text" id="new-display-name" required placeholder="ej: María García">
+                        
+                        <label></label>
+                        <button type="submit">Crear Usuario</button>
+                    </form>
+                </div>
+                
+                <!-- Preferencias del Usuario Actual -->
+                <div class="section">
+                    <h3>🎛️ Preferencias del Usuario Actual</h3>
+                    <div id="current-user-preferences">
+                        <!-- Se pobla dinámicamente -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- === PESTAÑA DE CONFIGURACIÓN === -->
+            <div id="configuracion-tab" class="tab-content">
+                <h2>Configuración General</h2>
+                
+                <div class="section">
+                    <h3>🔊 Configuración de Voz</h3>
+                    <form id="settings-form">
+                        <label for="voice-select">Voz del Asistente:</label>
+                        <select id="voice-select"></select>
+                        <label></label><button type="submit">Guardar Configuración</button>
+                    </form>
+                </div>
+                
+                <div class="section">
+                    <h3>🤖 Configuración de IA</h3>
+                    <form id="ai-settings-form">
+                        <label for="ai-enabled">IA Generativa Habilitada:</label>
+                        <select id="ai-enabled">
+                            <option value="true">Sí</option>
+                            <option value="false">No</option>
+                        </select>
+                        
+                        <label for="ai-temperature">Creatividad (0-1):</label>
+                        <input type="range" id="ai-temperature" min="0" max="1" step="0.1" value="0.3">
+                        
+                        <label for="ai-max-tokens">Máximo de Tokens:</label>
+                        <input type="number" id="ai-max-tokens" min="50" max="500" value="150">
+                        
+                        <label></label>
+                        <button type="submit">Guardar Configuración IA</button>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- === PESTAÑA DE RECORDATORIOS === -->
+            <div id="recordatorios-tab" class="tab-content">
+                <h2>Recordatorios de Medicamentos</h2>
+                
+                <div class="section">
+                    <table>
+                        <thead><tr><th>Medicamento</th><th>Cantidad</th><th>Horas</th><th>Días</th><th>Acción</th></tr></thead>
+                        <tbody id="reminder-list-body"></tbody>
+                    </table>
+                </div>
+                
+                <div class="section">
+                    <h3>Añadir Recordatorio</h3>
+                    <form id="add-reminder-form">
+                        <label for="medicationName">Medicamento:</label><input type="text" id="medicationName" required>
+                        <label for="medicationQuantity">Cantidad:</label><input type="text" id="medicationQuantity" placeholder="Ej: 2 pastillas, 500ml, 1/2 tableta">
+                        <label for="medicationPrescription">Prescripción:</label><textarea id="medicationPrescription" rows="3" placeholder="Ej: Tomar después del almuerzo con estómago lleno"></textarea>
+                        <label for="remindTimes">Horas (HH:MM, ...):</label><input type="text" id="remindTimes" placeholder="Ej: 08:00, 20:00" required>
+                        <label>Días:</label>
+                        <div class="day-selector" id="remind-days">
+                            <input type="checkbox" value="mon"><label>L</label>
+                            <input type="checkbox" value="tue"><label>M</label>
+                            <input type="checkbox" value="wed"><label>M</label>
+                            <input type="checkbox" value="thu"><label>J</label>
+                            <input type="checkbox" value="fri"><label>V</label>
+                            <input type="checkbox" value="sat"><label>S</label>
+                            <input type="checkbox" value="sun"><label>D</label>
+                        </div>
+                        <label for="medicationPhoto">Foto (Opcional):</label><input type="file" id="medicationPhoto" accept="image/*">
+                        <label></label><button type="submit">Guardar Recordatorio</button>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- === PESTAÑA DE TAREAS === -->
+            <div id="tareas-tab" class="tab-content">
+                <h2>Tareas Generales</h2>
+                
+                <div class="section">
+                    <table>
+                        <thead><tr><th>Tarea</th><th>Horas</th><th>Días</th><th>Acción</th></tr></thead>
+                        <tbody id="task-list-body"></tbody>
+                    </table>
+                </div>
+                
+                <div class="section">
+                    <h3>Añadir Tarea</h3>
+                    <form id="add-task-form">
+                        <label for="taskName">Nombre de la Tarea:</label><input type="text" id="taskName" required>
+                        <label for="taskTimes">Horas (HH:MM, ...):</label><input type="text" id="taskTimes" placeholder="Ej: 10:00, 18:00" required>
+                        <label>Días:</label>
+                        <div class="day-selector" id="task-days">
+                            <input type="checkbox" value="mon"><label>L</label>
+                            <input type="checkbox" value="tue"><label>M</label>
+                            <input type="checkbox" value="wed"><label>M</label>
+                            <input type="checkbox" value="thu"><label>J</label>
+                            <input type="checkbox" value="fri"><label>V</label>
+                            <input type="checkbox" value="sat"><label>S</label>
+                            <input type="checkbox" value="sun"><label>D</label>
+                        </div>
+                        <label></label><button type="submit">Guardar Tarea</button>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- === PESTAÑA DE CONTACTOS === -->
+            <div id="contactos-tab" class="tab-content">
+                <h2>Contactos</h2>
+                
+                <div class="section">
+                    <table>
+                        <thead><tr><th>Nombre</th><th>Alias</th><th>Chat ID</th><th>Emergencia</th><th>Acción</th></tr></thead>
+                        <tbody id="contact-list-body"></tbody>
+                    </table>
+                </div>
+                
+                <div class="section">
+                    <h3>Añadir Contacto</h3>
+                    <form id="add-contact-form">
+                        <label for="displayName">Nombre:</label><input type="text" id="displayName" required>
+                        <label for="aliases">Alias:</label><input type="text" id="aliases" required>
+                        <label for="details">Chat ID:</label><input type="text" id="details" required>
+                        <label for="isEmergency">Contacto de Emergencia:</label>
+                        <select id="isEmergency">
+                            <option value="false">No</option>
+                            <option value="true">Sí</option>
+                        </select>
+                        <label></label><button type="submit">Guardar Contacto</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Área de mensajes -->
+        <div id="message-area"></div>
+    </div>
+
+    <!-- JavaScript (se implementará en el siguiente paso) -->
+    <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Kata</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; padding: 1em; background-color: #f4f4f9; color: #333; }
+        h1, h2 { color: #4a86e8; border-bottom: 2px solid #4a86e8; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1em; background-color: #fff; box-shadow: 0 2px 3px rgba(0,0,0,0.1); }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #4a86e8; color: white; }
+        .container { max-width: 900px; margin: auto; }
+        .section { margin-bottom: 2em; }
+        form { display: grid; grid-template-columns: auto 1fr; gap: 10px; margin-top: 1em; padding: 1em; background-color: #fff; box-shadow: 0 2px 3px rgba(0,0,0,0.1); align-items: start; }
+        form label { font-weight: bold; text-align: right; padding-top: 10px; }
+        form input, form button, form select, form textarea { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit; }
+        form textarea { resize: vertical; min-height: 60px; }
+        form button { background-color: #28a745; color: white; grid-column: 2; cursor: pointer; }
+        .delete-btn { background-color: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+        .day-selector { display: flex; gap: 10px; justify-content: flex-start; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Gestor del Asistente</h1>
+        
+        <div class="section">
+            <h2>Configuración</h2>
+            <form id="settings-form">
+                <label for="voice-select">Voz del Asistente:</label>
+                <select id="voice-select"></select>
+                <label></label><button type="submit">Guardar Configuración</button>
+            </form>
+        </div>
+
+        <div class="section">
+            <h2>Recordatorios de Medicamentos</h2>
+            <table>
+                <thead><tr><th>Medicamento</th><th>Cantidad</th><th>Horas</th><th>Días</th><th>Acción</th></tr></thead>
+                <tbody id="reminder-list-body"></tbody>
+            </table>
+            <h2>Añadir Recordatorio</h2>
+            <form id="add-reminder-form">
+                <label for="medicationName">Medicamento:</label><input type="text" id="medicationName" required>
+                <label for="medicationQuantity">Cantidad:</label><input type="text" id="medicationQuantity" placeholder="Ej: 2 pastillas, 500ml, 1/2 tableta">
+                <label for="medicationPrescription">Prescripción:</label><textarea id="medicationPrescription" rows="3" placeholder="Ej: Tomar después del almuerzo con estómago lleno"></textarea>
+                <label for="remindTimes">Horas (HH:MM, ...):</label><input type="text" id="remindTimes" placeholder="Ej: 08:00, 20:00" required>
+                <label>Días:</label>
+                <div class="day-selector" id="remind-days">
+                    <input type="checkbox" value="mon"><label>L</label>
+                    <input type="checkbox" value="tue"><label>M</label>
+                    <input type="checkbox" value="wed"><label>M</label>
+                    <input type="checkbox" value="thu"><label>J</label>
+                    <input type="checkbox" value="fri"><label>V</label>
+                    <input type="checkbox" value="sat"><label>S</label>
+                    <input type="checkbox" value="sun"><label>D</label>
+                </div>
+                <label for="medicationPhoto">Foto (Opcional):</label><input type="file" id="medicationPhoto" accept="image/*">
+                <label></label><button type="submit">Guardar Recordatorio</button>
+            </form>
+        </div>
+
+        <!-- --- NUEVA SECCIÓN PARA TAREAS --- -->
+        <div class="section">
+            <h2>Tareas Generales</h2>
+            <table>
+                <thead><tr><th>Tarea</th><th>Horas</th><th>Días</th><th>Acción</th></tr></thead>
+                <tbody id="task-list-body"></tbody>
+            </table>
+            <h2>Añadir Tarea</h2>
+            <form id="add-task-form">
+                <label for="taskName">Nombre de la Tarea:</label><input type="text" id="taskName" required>
+                <label for="taskTimes">Horas (HH:MM, ...):</label><input type="text" id="taskTimes" placeholder="Ej: 10:00, 18:00" required>
+                <label>Días:</label>
+                <div class="day-selector" id="task-days">
+                    <input type="checkbox" value="mon"><label>L</label>
+                    <input type="checkbox" value="tue"><label>M</label>
+                    <input type="checkbox" value="wed"><label>M</label>
+                    <input type="checkbox" value="thu"><label>J</label>
+                    <input type="checkbox" value="fri"><label>V</label>
+                    <input type="checkbox" value="sat"><label>S</label>
+                    <input type="checkbox" value="sun"><label>D</label>
+                </div>
+                <label></label><button type="submit">Guardar Tarea</button>
+            </form>
+        </div>
+        <!-- --- FIN DE LA NUEVA SECCIÓN --- -->
+
+        <div class="section">
+            <h2>Contactos</h2>
+            <table>
+                <thead><tr><th>Nombre</th><th>Alias</th><th>Chat ID</th><th>Emergencia</th><th>Acción</th></tr></thead>
+                <tbody id="contact-list-body"></tbody>
+            </table>
+            <h2>Añadir Contacto</h2>
+            <form id="add-contact-form">
+                <label for="displayName">Nombre:</label><input type="text" id="displayName" required>
+                <label for="aliases">Alias:</label><input type="text" id="aliases" required>
+                <label for="details">Chat ID:</label><input type="text" id="details" required>
+                <label for="isEmergency">Emergencia?:</label><input type="checkbox" id="isEmergency" style="justify-self: start;">
+                <label></label><button type="submit">Guardar Contacto</button>
+            </form>
+        </div>
+    </div>
+    <script src="/static/app.js"></script>
+</body>
+</html>

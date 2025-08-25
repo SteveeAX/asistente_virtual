@@ -20,6 +20,16 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 
+# Importar adaptador para BD multi-usuario
+try:
+    import sys
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+    from database.user_preferences_adapter import user_preferences_adapter
+    USE_DATABASE_ADAPTER = True
+except ImportError as e:
+    logging.warning(f"No se pudo importar adaptador de BD: {e}. Usando archivo JSON.")
+    USE_DATABASE_ADAPTER = False
+
 logger = logging.getLogger(__name__)
 
 @dataclass
@@ -105,12 +115,25 @@ class ContextEnricher:
         logger.info("ContextEnricher inicializado correctamente")
     
     def _load_preferences(self) -> Dict[str, Any]:
-        """Carga las preferencias del usuario desde el archivo JSON"""
+        """Carga las preferencias del usuario desde BD multi-usuario o archivo JSON de fallback"""
         try:
+            # Priorizar adaptador de BD multi-usuario
+            if USE_DATABASE_ADAPTER:
+                try:
+                    preferences = user_preferences_adapter.get_user_preferences_for_ai()
+                    if preferences:
+                        logger.info("Preferencias de usuario cargadas desde BD multi-usuario")
+                        return preferences
+                    else:
+                        logger.warning("BD multi-usuario no devolvió preferencias, usando fallback")
+                except Exception as db_error:
+                    logger.error(f"Error usando adaptador BD: {db_error}, fallback a JSON")
+            
+            # Fallback: usar archivo JSON original
             if os.path.exists(self.preferences_path):
                 with open(self.preferences_path, 'r', encoding='utf-8') as f:
                     preferences = json.load(f)
-                logger.info("Preferencias de usuario cargadas para personalización")
+                logger.info("Preferencias de usuario cargadas desde archivo JSON (fallback)")
                 return preferences
             else:
                 logger.warning(f"Archivo de preferencias no encontrado: {self.preferences_path}")
@@ -407,3 +430,46 @@ class ContextEnricher:
             'personality': context.personalization_data.get('personalidad'),
             'capabilities': len(context.personalization_data.get('mis_capacidades', []))
         }
+    
+    def reload_user_preferences(self):
+        """
+        Recarga las preferencias del usuario. Útil cuando cambia el usuario activo.
+        
+        Este método limpia el cache del adaptador BD y recarga las preferencias
+        del usuario actualmente activo.
+        """
+        try:
+            if USE_DATABASE_ADAPTER:
+                # Limpiar cache del adaptador para forzar recarga
+                user_preferences_adapter.clear_cache()
+                logger.info("Cache del adaptador BD limpiado")
+            
+            # Recargar preferencias
+            self.user_preferences = self._load_preferences()
+            logger.info("Preferencias de usuario recargadas después de cambio de usuario")
+            
+        except Exception as e:
+            logger.error(f"Error recargando preferencias de usuario: {e}")
+    
+    def get_current_user_info(self) -> Dict[str, Any]:
+        """
+        Obtiene información del usuario actual para debugging.
+        
+        Returns:
+            Dict: Información básica del usuario actual
+        """
+        try:
+            if USE_DATABASE_ADAPTER:
+                return user_preferences_adapter.get_user_summary()
+            else:
+                # Fallback para modo JSON
+                user_data = self.user_preferences.get('usuario', {})
+                return {
+                    'usuario': user_data.get('nombre', 'N/A'),
+                    'modo': 'archivo_json',
+                    'categorias_totales': len(self.user_preferences),
+                    'ultima_carga': 'N/A'
+                }
+        except Exception as e:
+            logger.error(f"Error obteniendo info del usuario actual: {e}")
+            return {'error': str(e)}

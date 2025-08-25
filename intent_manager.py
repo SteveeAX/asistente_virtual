@@ -5,7 +5,7 @@ logger = logging.getLogger(__name__)
 # El diccionario de intenciones ahora vive aquí
 INTENTS = {
     "GET_DATE": ["qué día", "cual dia", "cuál es la fecha", "que fecha"],
-    "GET_TIME": ["qué hora", "dime la hora", "dígame la hora"],
+    "GET_TIME": ["qué hora es", "dime la hora", "dígame la hora", "cuál es la hora"],
     "PLUG_ON": ["enciende el enchufe", "prende el enchufe"],
     "PLUG_OFF": ["apaga el enchufe"],
     "EMERGENCY_ALERT": ["ayuda", "emergencia", "pide ayuda"],

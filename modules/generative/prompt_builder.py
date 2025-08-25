@@ -26,14 +26,14 @@ class PromptBuilder:
     
     def __init__(self):
         """Inicializa el constructor de prompts"""
-        self.base_system_prompt = self._get_base_system_prompt()
         self.domain_templates = self._init_domain_templates()
         
         logger.info("PromptBuilder inicializado correctamente")
     
-    def _get_base_system_prompt(self) -> str:
+    def _get_base_system_prompt(self, user_name: str = None) -> str:
         """Prompt base del sistema para todas las respuestas"""
-        return """Eres Kata, un asistente virtual cercano y amigable para Francisca.
+        nombre_usuario = user_name if user_name else "{nombre_usuario}"
+        return f"""Eres Kata, un asistente virtual cercano y amigable para {nombre_usuario}.
 
 REGLAS FUNDAMENTALES:
 - Máximo 40 palabras por respuesta (muy importante)
@@ -42,42 +42,42 @@ REGLAS FUNDAMENTALES:
 - Para temas de salud: sugiere consultar médico
 - Si no entiendes, pide que repita
 
-Tu objetivo es ser útil y hacer que Francisca se sienta acompañada."""
+Tu objetivo es ser útil y hacer que {nombre_usuario} se sienta acompañada."""
     
     def _init_domain_templates(self) -> Dict[str, str]:
-        """Inicializa plantillas específicas por dominio (personalizadas para Francisca)"""
+        """Inicializa plantillas específicas por dominio (dinámicas para cualquier usuario)"""
         return {
             'plantas': """
-CONTEXTO PERSONAL DE FRANCISCA:
+CONTEXTO PERSONAL DE {nombre_usuario}:
 - Le encantan las plantas medicinales: {plantas_conoce}
 - Es experta en cuidado de plantas de interior
 - Conoce remedios caseros: {ejemplos_plantas}
-- Vive en Quevedo, Ecuador
+- Vive en {ciudad}
 {frase_cercana_plantas}
 
 ESTILO: Reconoce su conocimiento y experiencia""",
 
             'cocina': """
-CONTEXTO PERSONAL DE FRANCISCA:
+CONTEXTO PERSONAL DE {nombre_usuario}:
 - Sus comidas favoritas: {comidas_favoritas}
 - Conoce recetas tradicionales ecuatorianas
 - Ejemplos: {ejemplos_comida}
-- De la región de Quevedo
+- De la región de {ciudad}
 {frase_cercana_cocina}
 
 ESTILO: Reconoce su experiencia culinaria""",
 
             'mascotas': """
-CONTEXTO PERSONAL DE FRANCISCA:
-- Tiene dos perros: {nombres_mascotas}
+CONTEXTO PERSONAL DE {nombre_usuario}:
+- Tiene mascotas: {nombres_mascotas}
 - Le encantan sus mascotas
 - Ejemplos de conversación: {ejemplos_mascotas}
 {frase_cercana_mascotas}
 
-ESTILO: Muestra interés por Coco y Troy""",
+ESTILO: Muestra interés por sus mascotas""",
 
             'entretenimiento': """
-CONTEXTO PERSONAL DE FRANCISCA:
+CONTEXTO PERSONAL DE {nombre_usuario}:
 - Le gustan: {entretenimiento_preferido}
 - Música preferida: {musica_preferida}
 - Actividades: {actividades_sociales}
@@ -87,15 +87,15 @@ ESTILO: Conecta con sus gustos personales""",
             
             'tiempo': """
 CONTEXTO ADICIONAL:
-- Francisca vive en Quevedo, Ecuador
+- {nombre_usuario} vive en {ciudad}, Ecuador
 - Responde de manera práctica y útil
 - Sugiere acciones apropiadas según el clima
 
 ESTILO: Informativo pero cálido""",
             
             'personal': """
-CONTEXTO PERSONAL DE FRANCISCA:
-- Es Francisca de {ciudad}, {edad} años
+CONTEXTO PERSONAL DE {nombre_usuario}:
+- Es {nombre_usuario} de {ciudad}, {edad} años
 - Temas favoritos: {temas_favoritos}
 - Región: {region}
 - Menciona que eres Kata si preguntan
@@ -103,7 +103,7 @@ CONTEXTO PERSONAL DE FRANCISCA:
 ESTILO: Cercano y familiar""",
 
             'religion': """
-CONTEXTO PERSONAL DE FRANCISCA:
+CONTEXTO PERSONAL DE {nombre_usuario}:
 - Es católica practicante
 - Puedes hacer referencias respetuosas a la fe
 - Valores tradicionales ecuatorianos
@@ -120,7 +120,7 @@ ESTILO: Técnico pero accesible""",
             
             'conversacional': """
 CONTEXTO ADICIONAL:
-- Saludo o conversación casual con Francisca
+- Saludo o conversación casual con {nombre_usuario}
 - Hora actual: {hora_actual}
 - Período del día: {periodo_dia}
 - Saludo apropiado: {saludo}
@@ -137,7 +137,7 @@ ESTILO: Educativo pero amigable""",
             
             'general': """
 CONTEXTO ADICIONAL:
-- Consulta general para Francisca
+- Consulta general para {nombre_usuario}
 - Responder de manera útil y empática
 - Adaptarse al tono de la consulta
 
@@ -314,20 +314,52 @@ ESTILO: Adaptativo y amigable"""
         
         return prompt
     
-    def build_personalized_prompt(self, user_query: str, context: QueryContext) -> str:
+    def _add_memory_context(self, prompt: str, memory_context: Dict[str, Any] = None) -> str:
         """
-        Construye un prompt personalizado completo
+        Añade contexto de memoria conversacional al prompt si está disponible
+        
+        Args:
+            prompt (str): Prompt base
+            memory_context (Dict): Contexto de memoria conversacional
+            
+        Returns:
+            str: Prompt con contexto de memoria
+        """
+        if not memory_context or not memory_context.get('has_memory'):
+            return prompt
+        
+        memory_reason = memory_context.get('memory_reason', 'unknown')
+        minutes_ago = memory_context.get('minutes_ago', 0)
+        last_query = memory_context.get('last_query', '')
+        last_response = memory_context.get('last_response', '')
+        
+        # Crear contexto de memoria conciso
+        memory_text = f"""
+CONTEXTO CONVERSACIONAL (hace {minutes_ago} min):
+Usuario preguntó: "{last_query}"
+Yo respondí: "{last_response}"
+
+NOTA: La consulta actual parece relacionada ({memory_reason}). 
+Usa este contexto para dar una respuesta coherente y conectada."""
+        
+        return prompt + "\n\n" + memory_text
+    
+    def build_personalized_prompt(self, user_query: str, context: QueryContext, memory_context: Dict[str, Any] = None) -> str:
+        """
+        Construye un prompt personalizado completo con memoria conversacional opcional
         
         Args:
             user_query (str): Consulta del usuario
             context (QueryContext): Contexto enriquecido
+            memory_context (Dict): Contexto de memoria conversacional opcional
             
         Returns:
             str: Prompt personalizado listo para usar
         """
         try:
-            # 1. Empezar con el prompt base del sistema
-            prompt = self.base_system_prompt
+            # 1. Empezar con el prompt base del sistema (personalizado)
+            user_name = context.personalization_data.get('nombre_usuario', 'Usuario')
+            prompt = self._get_base_system_prompt(user_name)
             
             # 2. Agregar plantilla específica del dominio
             domain_template = self.domain_templates.get(context.domain, self.domain_templates['general'])
@@ -340,16 +372,20 @@ ESTILO: Adaptativo y amigable"""
             # 4. Añadir contexto específico de la consulta
             prompt = self._add_query_context(prompt, context, user_query)
             
-            # 5. Añadir la consulta del usuario al final
+            # 5. Añadir memoria conversacional si está disponible
+            prompt = self._add_memory_context(prompt, memory_context)
+            
+            # 6. Añadir la consulta del usuario al final
             prompt += f"\n\nCONSULTA DEL USUARIO:\n{user_query}\n\nRESPUESTA:"
             
-            logger.debug(f"Prompt personalizado construido para dominio '{context.domain}'")
+            logger.debug(f"Prompt personalizado construido para dominio '{context.domain}' (memoria: {bool(memory_context)})")
             return prompt
             
         except Exception as e:
             logger.error(f"Error construyendo prompt personalizado: {e}")
             # Fallback a prompt básico
-            return f"{self.base_system_prompt}\n\nUsuario: {user_query}\nAsistente:"
+            fallback_prompt = self._get_base_system_prompt("Usuario")
+            return f"{fallback_prompt}\n\nUsuario: {user_query}\nAsistente:"
     
     def build_simple_prompt(self, user_query: str, system_context: str = None) -> str:
         """
@@ -365,7 +401,8 @@ ESTILO: Adaptativo y amigable"""
         if system_context:
             return f"{system_context}\n\nUsuario: {user_query}\nAsistente:"
         else:
-            return f"{self.base_system_prompt}\n\nUsuario: {user_query}\nAsistente:"
+            base_prompt = self._get_base_system_prompt("Usuario")
+            return f"{base_prompt}\n\nUsuario: {user_query}\nAsistente:"
     
     def get_prompt_summary(self, user_query: str, context: QueryContext) -> Dict[str, Any]:
         """

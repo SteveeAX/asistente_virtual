@@ -3,8 +3,24 @@ import threading, queue, logging, time, os, sys
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 
+# === SISTEMA HÍBRIDO: COMPARTIDO + POR USUARIO ===
+# - Medicamentos, tareas, contactos, configuración → BD compartida (todos los usuarios)
+# - Solo preferencias de IA → BD por usuario (para personalización)
+# - RouterCentral sigue necesitando contexto de usuario para personalización
+
 # --- Módulos del Proyecto ---
-import reminders, tts_manager, stt_manager, intent_manager, wakeword_detector, button_manager, emergency_manager, smart_home_manager, gemini_manager, firestore_logger, system_actions
+import reminders, tts_manager, stt_manager, intent_manager, wakeword_detector, button_manager, emergency_manager, smart_home_manager, firestore_logger, system_actions
+
+# --- Sistema Multi-Usuario ---
+try:
+    sys.path.append(os.path.join(os.path.dirname(__file__), 'database'))
+    from models.reminders_adapter import reminders_adapter
+    MULTI_USER_AVAILABLE = True
+    logging.info("Sistema multi-usuario disponible en improved_app")
+except ImportError as e:
+    MULTI_USER_AVAILABLE = False
+    reminders_adapter = None
+    logging.warning(f"Sistema multi-usuario no disponible: {e}")
 
 # --- Módulos de IA Generativa ---
 # Agregar directorio modules al path para importaciones
@@ -29,11 +45,41 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(threadName)s - %
 SETTINGS_FLAG_PATH = os.path.join(os.path.dirname(__file__), "settings_updated.flag")
 
 # Configuraciones globales  
-ENABLE_AI_GENERATIVE = False     # Flag para IA generativa
+ENABLE_AI_GENERATIVE = True     # Flag para IA generativa
 
 # Configuraciones del sistema unificado de confirmación de medicamentos
 MEDICATION_TIMEOUT = 300  # 5 minutos totales (sistema unificado)
-USER_NAME = "Usuario"  # Nombre del usuario para alertas
+USER_NAME = "Usuario"  # Nombre del usuario para alertas (será actualizado dinámicamente)
+
+# === FUNCIÓN HELPER PARA REMINDERS ===
+def get_reminders_service():
+    """
+    Obtiene el servicio de recordatorios (ahora siempre sistema compartido).
+    Medicamentos, tareas, contactos y configuración son compartidos entre usuarios.
+    """
+    if MULTI_USER_AVAILABLE and reminders_adapter:
+        return reminders_adapter  # Ahora redirige a BD compartida
+    else:
+        return reminders  # Fallback legacy
+
+# === FUNCIÓN HELPER PARA NOMBRE DE USUARIO ===
+def get_current_user_name():
+    """
+    Obtiene el nombre del usuario actual desde el sistema multi-usuario.
+    """
+    global USER_NAME
+    try:
+        if MULTI_USER_AVAILABLE:
+            from models.user_manager import user_manager
+            preferences = user_manager.get_user_preferences()
+            user_info = preferences.get('usuario', {})
+            USER_NAME = user_info.get('nombre', 'Usuario')
+            return USER_NAME
+        else:
+            return USER_NAME
+    except Exception as e:
+        logging.error(f"Error obteniendo nombre de usuario: {e}")
+        return "Usuario"
 
 class KataApp(ctk.CTk):
     def __init__(self):
@@ -43,21 +89,28 @@ class KataApp(ctk.CTk):
         ctk.set_appearance_mode("Dark")
 
         # --- Atributos de la aplicación ---
-        self.selected_voice = reminders.get_setting('voice_name', 'es-US-Neural2-A')
+        service = get_reminders_service()
+        self.selected_voice = service.get_setting('voice_name', 'es-US-Neural2-A')
         self.is_speaking_or_listening = threading.Lock()
         self.admin_mode = False
         
         # --- RouterCentral para IA Generativa ---
         self.router_central = None
         
+        # --- Cargar nombre del usuario actual ---
+        self.current_user_name = get_current_user_name()
+        logging.info(f"Aplicación iniciada para usuario: {self.current_user_name}")
+        
         # --- Estado del sistema unificado de confirmación de medicamentos ---
         self.medication_confirmation_state = "NORMAL"  # NORMAL, MEDICATION_ACTIVE
         self.current_medication_info = None
         self.medication_timer = None
+        self.medication_repeat_timer = None
 
         
         # Cargar tema guardado (por defecto oscuro)
-        saved_theme = reminders.get_setting('app_theme', 'dark')
+        service = get_reminders_service()
+        saved_theme = service.get_setting('app_theme', 'dark')
         self.is_light_theme = (saved_theme == 'light')
 
         # --- Configuración de la UI ---
@@ -128,7 +181,8 @@ class KataApp(ctk.CTk):
         
         # Guardar la preferencia de tema
         theme_value = 'light' if self.is_light_theme else 'dark'
-        reminders.set_setting('app_theme', theme_value)
+        service = get_reminders_service()
+        service.set_setting('app_theme', theme_value)
         
         if self.is_light_theme:
             ctk.set_appearance_mode("Light")
@@ -215,7 +269,6 @@ class KataApp(ctk.CTk):
 
     def initialize_backend_threads(self):
         wakeword_detector.init_porcupine()
-        gemini_manager.start_new_chat_session()
         
         # --- Inicializar RouterCentral ---
         self.initialize_router_central()
@@ -229,7 +282,10 @@ class KataApp(ctk.CTk):
         threading.Thread(target=self.settings_checker, daemon=True, name="SettingsCheckerThread").start()
 
     def settings_checker(self):
+        USER_CHANGED_FLAG_PATH = os.path.join(os.path.dirname(__file__), "user_changed.flag")
+        
         while True:
+            # Verificar cambios de configuración
             if os.path.exists(SETTINGS_FLAG_PATH):
                 flag_content = ""
                 try:
@@ -242,6 +298,20 @@ class KataApp(ctk.CTk):
                     self.after(0, self.reload_voice_setting)
                 elif flag_content == 'update_scheduler':
                     self.after(0, self.reload_scheduler)
+            
+            # Verificar cambios de usuario
+            if os.path.exists(USER_CHANGED_FLAG_PATH):
+                try:
+                    with open(USER_CHANGED_FLAG_PATH, 'r') as f: 
+                        user_change_info = f.read().strip()
+                    os.remove(USER_CHANGED_FLAG_PATH)
+                    
+                    # Procesar cambio de usuario
+                    self.after(0, lambda: self.handle_user_change(user_change_info))
+                    
+                except Exception as e: 
+                    logging.error(f"Error procesando cambio de usuario: {e}")
+            
             time.sleep(3)
 
     def initialize_router_central(self):
@@ -260,13 +330,56 @@ class KataApp(ctk.CTk):
 
     def reload_voice_setting(self):
         logging.info("SETTINGS_CHECKER: Se detectó cambio de voz.")
-        self.selected_voice = reminders.get_setting('voice_name', self.selected_voice)
+        service = get_reminders_service()
+        self.selected_voice = service.get_setting('voice_name', self.selected_voice)
         tts_manager.say("Voz actualizada.", self.selected_voice)
 
     def reload_scheduler(self):
         logging.info("SETTINGS_CHECKER: Se detectó cambio en recordatorios.")
         self.update_scheduler()
         tts_manager.say("Recordatorios actualizados.", self.selected_voice)
+    
+    def handle_user_change(self, user_change_info):
+        """Maneja el cambio de usuario desde la interfaz web."""
+        try:
+            if '→' in user_change_info:
+                previous_user, new_user = user_change_info.split('→')
+                logging.info(f"USER_CHANGE: Cambiando de {previous_user} a {new_user}")
+                
+                # Actualizar nombre del usuario actual
+                previous_name = self.current_user_name
+                self.current_user_name = get_current_user_name()
+                logging.info(f"USER_CHANGE: Nombre actualizado de '{previous_name}' a '{self.current_user_name}'")
+                
+                # Recargar contexto de usuario en RouterCentral para cargar nuevas preferencias
+                if self.router_central:
+                    logging.info("USER_CHANGE: Recargando contexto de usuario en RouterCentral")
+                    try:
+                        # Usar recarga de contexto más eficiente en lugar de reinicialización completa
+                        self.router_central.reload_user_context()
+                        logging.info("USER_CHANGE: Contexto de usuario recargado exitosamente")
+                    except Exception as e:
+                        logging.error(f"USER_CHANGE: Error recargando contexto, reinicializando: {e}")
+                        # Fallback a reinicialización completa si falla la recarga
+                        self.initialize_router_central()
+                
+                # Recargar configuración de voz
+                service = get_reminders_service()
+                self.selected_voice = service.get_setting('voice_name', self.selected_voice)
+                
+                # Recargar scheduler con datos del nuevo usuario
+                self.update_scheduler()
+                
+                # Notificar al usuario con su nombre real
+                tts_manager.say(f"Hola {self.current_user_name}, ahora estoy configurado para ti.", self.selected_voice)
+                
+                logging.info(f"USER_CHANGE: Cambio completado exitosamente a {self.current_user_name}")
+                
+            else:
+                logging.warning(f"USER_CHANGE: Formato inválido: {user_change_info}")
+                
+        except Exception as e:
+            logging.error(f"USER_CHANGE: Error manejando cambio de usuario: {e}")
 
     def start_wakeword_thread(self):
         if hasattr(self, 'wakeword_thread') and self.wakeword_thread.is_alive(): return
@@ -321,7 +434,8 @@ class KataApp(ctk.CTk):
             with self.is_speaking_or_listening:
                 self.clock_interface.update_status("¡Te escucho!", "#3498DB")
                 all_aliases = set()
-                for c in reminders.list_contacts(): all_aliases.update([a.strip() for a in c['aliases'].split(',')])
+                service = get_reminders_service()
+                for c in service.list_contacts(): all_aliases.update([a.strip() for a in c['aliases'].split(',')])
                 
                 transcribed_text = stt_manager.stream_audio_and_transcribe(adaptation_phrases=list(all_aliases))
                 
@@ -397,10 +511,11 @@ class KataApp(ctk.CTk):
         elif intent == "DELETE_REMINDER": self._handle_delete_reminder(text)
         else:
             if text:
-                if ENABLE_AI_GENERATIVE:
-                    # IA Generativa habilitada
+                if ENABLE_AI_GENERATIVE and ROUTER_AVAILABLE:
+                    # IA Generativa habilitada - usar RouterCentral
                     firestore_logger.log_interaction("ai_query", details={'transcription': text})
-                    response = gemini_manager.ask_gemini_chat(text)
+                    result = self.router_central.process_user_input(text)
+                    response = result.get('response', 'No se pudo procesar la consulta')
                     tts_manager.say(response, self.selected_voice)
                 else:
                     # IA Generativa deshabilitada
@@ -455,54 +570,52 @@ class KataApp(ctk.CTk):
         audio_message = self._create_medication_audio_message(medication_info)
         tts_manager.say(audio_message, self.selected_voice)
         
+        # Timer para repetición del mensaje (4 minutos = 240 segundos)
+        self.medication_repeat_timer = threading.Timer(240, self._repeat_medication_message)
+        self.medication_repeat_timer.start()
+        
         # Timer para timeout (5 minutos total)
         self.medication_timer = threading.Timer(MEDICATION_TIMEOUT, self.handle_medication_timeout)
         self.medication_timer.start()
         
-        logging.info(f"MEDICATION: Alerta unificada iniciada - timer de {MEDICATION_TIMEOUT}s activado")
+        logging.info(f"MEDICATION: Alerta unificada iniciada - timer de {MEDICATION_TIMEOUT}s activado, repetición en 240s")
 
     def _create_medication_audio_message(self, medication_info):
         """
-        Crea un mensaje de audio inteligente con cantidad y prescripción.
+        Crea un mensaje de audio específico según requerimientos.
         """
-        base_message = f"Recordatorio. Es hora de tomar"
-        
-        # Agregar cantidad si está disponible
         cantidad = medication_info.get('cantidad', '')
-        if cantidad:
-            base_message += f" {cantidad} de"
-        
-        # Agregar nombre del medicamento
-        base_message += f" {medication_info['medication_name']}"
-        
-        # Agregar prescripción (solo parte clave para no hacer muy largo)
+        medicamento = medication_info['medication_name']
         prescripcion = medication_info.get('prescripcion', '')
+        
+        # Mensaje base: "Es hora de tomarte [cantidad] de [medicamento]"
+        if cantidad:
+            base_message = f"Es hora de tomarte {cantidad} de {medicamento}"
+        else:
+            base_message = f"Es hora de tomarte {medicamento}"
+        
+        # Agregar prescripción si está disponible
         if prescripcion:
-            # Buscar palabras clave importantes
-            key_phrases = []
-            prescripcion_lower = prescripcion.lower()
-            
-            if 'después' in prescripcion_lower:
-                if 'almuerzo' in prescripcion_lower:
-                    key_phrases.append('después del almuerzo')
-                elif 'comida' in prescripcion_lower:
-                    key_phrases.append('después de comer')
-                elif 'cena' in prescripcion_lower:
-                    key_phrases.append('después de la cena')
-            elif 'antes' in prescripcion_lower:
-                if 'almuerzo' in prescripcion_lower:
-                    key_phrases.append('antes del almuerzo')
-                elif 'comida' in prescripcion_lower:
-                    key_phrases.append('antes de comer')
-            elif 'con comida' in prescripcion_lower or 'con estómago' in prescripcion_lower:
-                key_phrases.append('con comida')
-            elif 'sin comida' in prescripcion_lower or 'estómago vacío' in prescripcion_lower:
-                key_phrases.append('con el estómago vacío')
-            
-            if key_phrases:
-                base_message += f". Recuerda: {', '.join(key_phrases)}"
+            base_message += f" y {prescripcion}"
+        
+        # Agregar instrucción de confirmación
+        base_message += ". Presiona el botón para confirmar que escuchaste el recordatorio y tomarás el medicamento"
         
         return base_message
+    
+    def _repeat_medication_message(self):
+        """
+        Repite el mensaje de voz automáticamente 1 minuto antes del timeout.
+        """
+        # Verificar si todavía estamos en estado de medicamento
+        if self.medication_confirmation_state != "MEDICATION_ACTIVE":
+            logging.info("MEDICATION: Repetición cancelada - medicamento ya confirmado")
+            return
+        
+        if self.current_medication_info:
+            logging.info("MEDICATION: Repitiendo mensaje de voz automáticamente")
+            audio_message = self._create_medication_audio_message(self.current_medication_info)
+            tts_manager.say(audio_message, self.selected_voice)
 
     def handle_medication_confirmed(self):
         """
@@ -522,7 +635,7 @@ class KataApp(ctk.CTk):
         # Logging de confirmación
         firestore_logger.log_interaction("medication_confirmed", details={
             'medication_name': medication_name,
-            'user_name': USER_NAME
+            'user_name': self.current_user_name
         })
         
         # Feedback de voz
@@ -550,13 +663,13 @@ class KataApp(ctk.CTk):
         # Logging de timeout
         firestore_logger.log_interaction("medication_timeout_alert", details={
             'medication_name': medication_name,
-            'user_name': USER_NAME,
+            'user_name': self.current_user_name,
             'timeout_minutes': MEDICATION_TIMEOUT / 60
         })
         
         # Enviar alerta a contactos de emergencia
         try:
-            emergency_manager.send_medication_alert(medication_name, USER_NAME)
+            emergency_manager.send_medication_alert(medication_name, self.current_user_name)
             logging.info("MEDICATION: Alerta de emergencia enviada exitosamente")
         except Exception as e:
             logging.error(f"MEDICATION: Error enviando alerta de emergencia: {e}")
@@ -568,11 +681,16 @@ class KataApp(ctk.CTk):
         self._reset_medication_state()
 
     def _cancel_medication_timers(self):
-        """Cancela el timer de medicamento activo."""
+        """Cancela todos los timers de medicamento activos."""
         if self.medication_timer and self.medication_timer.is_alive():
             self.medication_timer.cancel()
             self.medication_timer = None
-            logging.info("MEDICATION: Timer cancelado")
+            logging.info("MEDICATION: Timer principal cancelado")
+        
+        if hasattr(self, 'medication_repeat_timer') and self.medication_repeat_timer and self.medication_repeat_timer.is_alive():
+            self.medication_repeat_timer.cancel()
+            self.medication_repeat_timer = None
+            logging.info("MEDICATION: Timer de repetición cancelado")
 
     def _reset_medication_state(self):
         """Resetea el estado del sistema de confirmación de medicamentos."""
@@ -590,7 +708,8 @@ class KataApp(ctk.CTk):
         if self.scheduler.running: self.scheduler.remove_all_jobs()
         
         # Programar recordatorios de medicamentos
-        all_reminders = reminders.list_reminders()
+        service = get_reminders_service()
+        all_reminders = service.list_reminders()
         for rem in all_reminders:
             try:
                 days = rem['days_of_week']
@@ -601,7 +720,8 @@ class KataApp(ctk.CTk):
 
         # Programar tareas generales
         try:
-            all_tasks = reminders.list_tasks()
+            service = get_reminders_service()
+            all_tasks = service.list_tasks()
             for task in all_tasks:
                 try:
                     days = task['days_of_week']
@@ -714,7 +834,8 @@ class KataApp(ctk.CTk):
         # --- AÑADIR ESTA LÍNEA ---
         firestore_logger.log_interaction("command_executed", details={'command': 'contact_person'})
         
-        target = next((c for c in reminders.list_contacts() for alias in c['aliases'].split(',') if alias.strip() in text), None)
+        service = get_reminders_service()
+        target = next((c for c in service.list_contacts() for alias in c['aliases'].split(',') if alias.strip() in text), None)
         if target:
             msg = f"Hola, Kata se quiere contactar contigo, {target['display_name']}."
             emergency_manager.send_emergency_alert(msg, chat_id=target['contact_details']); tts_manager.say(f"Enviando aviso a {target['display_name']}.", self.selected_voice)
@@ -727,9 +848,10 @@ class KataApp(ctk.CTk):
                 self.wakeword_thread.join(timeout=1.0)
 
             with self.is_speaking_or_listening:
-                user_name = os.getenv("USER_NAME", "el usuario")
+                user_name = self.current_user_name
                 message = f"🚨 *ALERTA DE EMERGENCIA* 🚨\nSe ha solicitado ayuda para *{user_name}*."
-                ayuda = next((c for c in reminders.list_contacts() if c.get('is_emergency') == 1), None)
+                service = get_reminders_service()
+                ayuda = next((c for c in service.list_contacts() if c.get('is_emergency') == 1), None)
                 if ayuda:
                     emergency_manager.send_emergency_alert(message, chat_id=ayuda['contact_details'])
                     tts_manager.say("Enviando alerta de emergencia.", self.selected_voice)
@@ -760,6 +882,12 @@ class KataApp(ctk.CTk):
         self.destroy()
 
 if __name__ == '__main__':
-    reminders.init_db()
+    # Inicializar base de datos con sistema multi-usuario
+    if MULTI_USER_AVAILABLE:
+        logging.info("Inicializando sistema multi-usuario")
+        # El adaptador se encarga de la inicialización automáticamente
+    else:
+        logging.info("Inicializando sistema legacy")
+        reminders.init_db()
     app = KataApp()
     app.mainloop()
