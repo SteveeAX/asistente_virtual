@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # Script de lanzamiento con logging detallado para autoarranque
-# Autor: Claude Code
 
 LOG_FILE="/home/steveen/asistente_kata/logs/autostart.log"
 APP_PATH="/home/steveen/asistente_kata/src/app/main_app.py"

@@ -3,7 +3,6 @@
 
 """
 Script para descargar TODOS los datos de Firebase
-Autor: Claude Code
 """
 
 import os

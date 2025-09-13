@@ -3,7 +3,6 @@
 
 """
 Script para descargar logs de comandos fallidos desde Firebase
-Autor: Claude Code
 """
 
 import os
