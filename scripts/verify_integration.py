@@ -123,7 +123,7 @@ class IntegrationVerifier:
     def verify_directory_structure(self) -> Dict[str, Any]:
         """Verifica que la estructura de directorios esté creada"""
         required_dirs = [
-            'modules/generative',
+            'src/ai/generative',
             'config/generative',
             'data/preferences',
             'logs/generative',
@@ -247,13 +247,13 @@ class IntegrationVerifier:
     def verify_router_central(self) -> Dict[str, Any]:
         """Verifica que RouterCentral se pueda importar y funcione"""
         try:
-            # Agregar el directorio modules al path si no está
-            modules_path = os.path.join(self.project_dir, 'modules')
-            if modules_path not in sys.path:
-                sys.path.insert(0, modules_path)
+            # Agregar el directorio src al path si no está
+            src_path = os.path.join(self.project_dir, 'src')
+            if src_path not in sys.path:
+                sys.path.insert(0, src_path)
             
             # Intentar importar RouterCentral
-            from generative.router_central import RouterCentral
+            from ai.generative.router_central import RouterCentral
             
             # Crear un mock intent manager simple para testing
             class MockIntentManager:
@@ -409,11 +409,11 @@ class IntegrationVerifier:
         """Verifica la integración completa simulando el flujo real"""
         try:
             # Simular integración completa
-            modules_path = os.path.join(self.project_dir, 'modules')
-            if modules_path not in sys.path:
-                sys.path.insert(0, modules_path)
+            src_path = os.path.join(self.project_dir, 'src')
+            if src_path not in sys.path:
+                sys.path.insert(0, src_path)
             
-            from generative.router_central import RouterCentral
+            from ai.generative.router_central import RouterCentral
             
             # Verificar que se puede crear y usar sin el intent_manager real
             class DummyIntentManager:

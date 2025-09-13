@@ -100,6 +100,7 @@ class SharedDataManager:
                         aliases TEXT NOT NULL,    -- JSON array de aliases
                         platform TEXT NOT NULL,
                         details TEXT NOT NULL,    -- Chat ID, teléfono, etc.
+                        telegram_chat_id TEXT,    -- Campo específico para chat_id de Telegram
                         is_emergency BOOLEAN DEFAULT FALSE,
                         is_active BOOLEAN DEFAULT TRUE,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -114,6 +115,21 @@ class SharedDataManager:
                         value TEXT NOT NULL,
                         category TEXT DEFAULT 'general',
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                
+                # Tabla de mensajes recibidos
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS received_messages (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        contact_id INTEGER NOT NULL,
+                        message_text TEXT NOT NULL,
+                        telegram_message_id INTEGER UNIQUE,
+                        sender_chat_id TEXT NOT NULL,
+                        received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        is_read BOOLEAN DEFAULT FALSE,
+                        is_notified BOOLEAN DEFAULT FALSE,
+                        FOREIGN KEY (contact_id) REFERENCES contacts (id)
                     )
                 """)
                 
@@ -357,15 +373,15 @@ class SharedDataManager:
             return []
     
     def add_contact(self, display_name: str, aliases: List[str], platform: str,
-                   details: str, is_emergency: bool = False) -> bool:
+                   details: str, telegram_chat_id: str = None, is_emergency: bool = False) -> bool:
         """Agrega un contacto."""
         try:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    INSERT INTO contacts (display_name, aliases, platform, details, is_emergency)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (display_name, json.dumps(aliases), platform, details, is_emergency))
+                    INSERT INTO contacts (display_name, aliases, platform, details, telegram_chat_id, is_emergency)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (display_name, json.dumps(aliases), platform, details, telegram_chat_id, is_emergency))
                 conn.commit()
                 
             logger.info(f"Contacto agregado: {display_name}")
@@ -446,6 +462,182 @@ class SharedDataManager:
         except Exception as e:
             logger.error(f"Error obteniendo configuraciones: {e}")
             return {}
+    
+    # === MÉTODOS DE MENSAJES TELEGRAM ===
+    
+    def add_message(self, contact_name: str, message_text: str, telegram_message_id: int, 
+                   sender_chat_id: str) -> int:
+        """
+        Agrega un nuevo mensaje recibido de Telegram.
+        
+        Args:
+            contact_name (str): Nombre del contacto
+            message_text (str): Texto del mensaje
+            telegram_message_id (int): ID del mensaje en Telegram
+            sender_chat_id (str): ID del chat del remitente
+            
+        Returns:
+            int: ID del mensaje insertado
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Buscar o crear contacto
+                cursor.execute("SELECT id FROM contacts WHERE display_name = ?", (contact_name,))
+                contact = cursor.fetchone()
+                
+                if not contact:
+                    # Crear contacto nuevo
+                    cursor.execute("""
+                        INSERT INTO contacts (display_name, aliases, platform, details, telegram_chat_id, is_emergency, is_active) 
+                        VALUES (?, ?, ?, ?, ?, FALSE, TRUE)
+                    """, (contact_name, '[]', 'telegram', sender_chat_id, sender_chat_id))
+                    contact_id = cursor.lastrowid
+                else:
+                    contact_id = contact['id']
+                    # Actualizar telegram_chat_id si no existe
+                    cursor.execute("""
+                        UPDATE contacts SET telegram_chat_id = ?, updated_at = CURRENT_TIMESTAMP 
+                        WHERE id = ? AND telegram_chat_id IS NULL
+                    """, (sender_chat_id, contact_id))
+                
+                # Insertar mensaje
+                cursor.execute("""
+                    INSERT INTO received_messages 
+                    (contact_id, message_text, telegram_message_id, sender_chat_id, received_at, is_read, is_notified)
+                    VALUES (?, ?, ?, ?, ?, FALSE, FALSE)
+                """, (contact_id, message_text, telegram_message_id, sender_chat_id, datetime.now()))
+                
+                message_id = cursor.lastrowid
+                conn.commit()
+                
+                logger.info(f"Mensaje agregado: ID {message_id} de {contact_name}")
+                return message_id
+                
+        except Exception as e:
+            logger.error(f"Error agregando mensaje: {e}")
+            return -1
+    
+    def get_unread_messages(self, limit: int = 3) -> List[Dict[str, Any]]:
+        """
+        Obtiene los mensajes más antiguos no leídos.
+        
+        Args:
+            limit (int): Número máximo de mensajes a obtener
+            
+        Returns:
+            List[Dict]: Lista de mensajes no leídos
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT 
+                        m.id,
+                        m.message_text,
+                        m.received_at,
+                        c.display_name as contact_name
+                    FROM received_messages m
+                    JOIN contacts c ON m.contact_id = c.id
+                    WHERE m.is_read = FALSE
+                    ORDER BY m.received_at ASC
+                    LIMIT ?
+                """, (limit,))
+                
+                messages = []
+                for row in cursor.fetchall():
+                    messages.append({
+                        'id': row['id'],
+                        'contact_name': row['contact_name'],
+                        'message_text': row['message_text'],
+                        'received_at': row['received_at']
+                    })
+                
+                return messages
+                
+        except Exception as e:
+            logger.error(f"Error obteniendo mensajes no leídos: {e}")
+            return []
+    
+    def mark_messages_as_read(self, message_ids: List[int]) -> bool:
+        """
+        Marca mensajes como leídos y los elimina.
+        
+        Args:
+            message_ids (List[int]): IDs de los mensajes a marcar
+            
+        Returns:
+            bool: True si se marcaron exitosamente
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Marcar como leídos
+                placeholders = ','.join('?' * len(message_ids))
+                cursor.execute(f"""
+                    UPDATE received_messages 
+                    SET is_read = TRUE 
+                    WHERE id IN ({placeholders})
+                """, message_ids)
+                
+                # Eliminar mensajes leídos (como en funcionalidad original)
+                cursor.execute(f"""
+                    DELETE FROM received_messages 
+                    WHERE id IN ({placeholders})
+                """, message_ids)
+                
+                conn.commit()
+                logger.info(f"Mensajes marcados como leídos y eliminados: {message_ids}")
+                return True
+                
+        except Exception as e:
+            logger.error(f"Error marcando mensajes como leídos: {e}")
+            return False
+    
+    def get_unread_message_count(self) -> int:
+        """
+        Obtiene el número de mensajes no leídos.
+        
+        Returns:
+            int: Cantidad de mensajes no leídos
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) as count FROM received_messages WHERE is_read = FALSE")
+                result = cursor.fetchone()
+                return result['count'] if result else 0
+                
+        except Exception as e:
+            logger.error(f"Error contando mensajes no leídos: {e}")
+            return 0
+    
+    def mark_message_as_notified(self, message_id: int) -> bool:
+        """
+        Marca un mensaje como notificado.
+        
+        Args:
+            message_id (int): ID del mensaje
+            
+        Returns:
+            bool: True si se marcó exitosamente
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE received_messages 
+                    SET is_notified = TRUE 
+                    WHERE id = ?
+                """, (message_id,))
+                conn.commit()
+                return True
+                
+        except Exception as e:
+            logger.error(f"Error marcando mensaje como notificado: {e}")
+            return False
 
 # Instancia global del gestor de datos compartidos
 shared_data_manager = SharedDataManager()

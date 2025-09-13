@@ -165,7 +165,7 @@ Entorno virtual: ${VIRTUAL_ENV:-"No activo"}
 $(pip3 list | grep -E "(openai|google-generativeai|aiohttp|python-dotenv|jsonschema)")
 
 === ARCHIVOS CREADOS ===
-$(ls -la modules/generative/ config/generative/ data/preferences/ logs/generative/ 2>/dev/null)
+$(ls -la src/ai/generative/ config/generative/ data/preferences/ logs/generative/ 2>/dev/null)
 EOF
 
 echo -e "${GREEN}=== INSTALACIÓN COMPLETADA ===${NC}"

@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Kata</title>
+    <style>
+        body { 
+            font-family: sans-serif; 
+            margin: 0; 
+            padding: 1em; 
+            background-color: #f4f4f9; 
+            color: #333; 
+        }
+        
+        h1, h2, h3 { 
+            color: #4a86e8; 
+            border-bottom: 2px solid #4a86e8; 
+            padding-bottom: 10px; 
+        }
+        
+        .container { 
+            max-width: 1200px; 
+            margin: auto; 
+        }
+        
+        /* === SISTEMA DE PESTAÑAS === */
+        .tab-container {
+            margin-bottom: 2em;
+        }
+        
+        .tab-buttons {
+            display: flex;
+            background-color: #e9e9e9;
+            border-radius: 8px 8px 0 0;
+            overflow: hidden;
+            box-shadow: 0 2px 3px rgba(0,0,0,0.1);
+        }
+        
+        .tab-button {
+            flex: 1;
+            padding: 15px 20px;
+            background-color: #e9e9e9;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            color: #666;
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
+        }
+        
+        .tab-button:hover {
+            background-color: #d4d4d4;
+            color: #333;
+        }
+        
+        .tab-button.active {
+            background-color: #4a86e8;
+            color: white;
+            border-bottom: 3px solid #2c5aa0;
+        }
+        
+        .tab-content {
+            display: none;
+            background-color: white;
+            padding: 2em;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            min-height: 500px;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* === ESTILOS GENERALES === */
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 1em; 
+            background-color: #fff; 
+            box-shadow: 0 2px 3px rgba(0,0,0,0.1); 
+        }
+        
+        th, td { 
+            border: 1px solid #ddd; 
+            padding: 12px; 
+            text-align: left; 
+        }
+        
+        th { 
+            background-color: #4a86e8; 
+            color: white; 
+        }
+        
+        .section { 
+            margin-bottom: 2em; 
+        }
+        
+        form { 
+            display: grid; 
+            grid-template-columns: auto 1fr; 
+            gap: 10px; 
+            margin-top: 1em; 
+            padding: 1em; 
+            background-color: #f8f9fa; 
+            border-radius: 8px;
+            box-shadow: 0 2px 3px rgba(0,0,0,0.1); 
+            align-items: start; 
+        }
+        
+        form label { 
+            font-weight: bold; 
+            text-align: right; 
+            padding-top: 10px; 
+        }
+        
+        form input, form button, form select, form textarea { 
+            padding: 10px; 
+            border: 1px solid #ccc; 
+            border-radius: 4px; 
+            font-family: inherit; 
+        }
+        
+        form textarea { 
+            resize: vertical; 
+            min-height: 60px; 
+        }
+        
+        form button { 
+            background-color: #28a745; 
+            color: white; 
+            grid-column: 2; 
+            cursor: pointer; 
+            transition: background-color 0.3s;
+        }
+        
+        form button:hover {
+            background-color: #218838;
+        }
+        
+        .delete-btn { 
+            background-color: #dc3545; 
+            color: white; 
+            border: none; 
+            padding: 5px 10px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            transition: background-color 0.3s;
+        }
+        
+        .delete-btn:hover {
+            background-color: #c82333;
+        }
+        
+        .day-selector { 
+            display: flex; 
+            gap: 10px; 
+            justify-content: flex-start; 
+        }
+        
+        /* === ESTILOS ESPECÍFICOS PARA USUARIOS === */
+        .user-card {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 1em;
+            margin-bottom: 1em;
+            transition: box-shadow 0.3s;
+        }
+        
+        .user-card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .user-card.current-user {
+            border-color: #4a86e8;
+            background-color: #e3f2fd;
+        }
+        
+        .user-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5em;
+        }
+        
+        .user-name {
+            font-weight: bold;
+            font-size: 1.1em;
+            color: #4a86e8;
+        }
+        
+        .user-stats {
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        .user-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+        
+        .btn-warning {
+            background-color: #ffc107;
+            color: #212529;
+        }
+        
+        .btn-warning:hover {
+            background-color: #e0a800;
+        }
+        
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background-color: #218838;
+        }
+        
+        .current-user-indicator {
+            display: inline-block;
+            background-color: #28a745;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            margin-left: 10px;
+        }
+        
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1em;
+            margin-bottom: 2em;
+        }
+        
+        .status-card {
+            background-color: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 1em;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .status-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #4a86e8;
+        }
+        
+        .status-label {
+            color: #666;
+            margin-top: 0.5em;
+        }
+        
+        /* === FORMULARIOS DE PREFERENCIAS === */
+        .preferences-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5em;
+            margin-top: 1em;
+        }
+        
+        .preference-category {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 1em;
+        }
+        
+        .preference-category h4 {
+            margin-top: 0;
+            color: #495057;
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 0.5em;
+        }
+        
+        .preference-item {
+            margin-bottom: 1em;
+        }
+        
+        .preference-item label {
+            display: block;
+            margin-bottom: 0.5em;
+            font-weight: 500;
+        }
+        
+        .preference-item input,
+        .preference-item select,
+        .preference-item textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        
+        /* === MENSAJES DE ESTADO === */
+        .alert {
+            padding: 12px 16px;
+            border-radius: 4px;
+            margin-bottom: 1em;
+            border: 1px solid transparent;
+        }
+        
+        .alert-success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        
+        .alert-error {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        
+        .alert-info {
+            background-color: #cce7ff;
+            border-color: #b8daff;
+            color: #004085;
+        }
+        
+        /* === ESTILOS DEL MODAL DE EDICIÓN === */
+        .modal {
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(2px);
+        }
+        
+        .modal-content {
+            background-color: white;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            animation: modalSlideIn 0.3s ease-out;
+        }
+        
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9) translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+        
+        .modal-header {
+            background-color: #4a86e8;
+            color: white;
+            padding: 1em 1.5em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 12px 12px 0 0;
+        }
+        
+        .modal-header h3 {
+            margin: 0;
+            border: none;
+            color: white;
+            padding: 0;
+        }
+        
+        .close-modal {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5em;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.3s;
+        }
+        
+        .close-modal:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        .modal-body {
+            padding: 1.5em;
+            max-height: 60vh;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+        }
+        
+        .changes-indicator {
+            background-color: #fff3cd;
+            border: 1px solid #ffecb5;
+            border-radius: 8px;
+            padding: 10px 15px;
+            margin-bottom: 1em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #856404;
+        }
+        
+        .changes-badge {
+            background-color: #ffc107;
+            color: #212529;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        
+        .changes-warning {
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+        
+        /* === CATEGORÍAS COLAPSABLES === */
+        .category-section {
+            background-color: white;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            margin-bottom: 1em;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .category-section.expanded {
+            border-color: #4a86e8;
+        }
+        
+        .category-header {
+            background-color: #f8f9fa;
+            padding: 12px 15px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.3s;
+            user-select: none;
+        }
+        
+        .category-header:hover {
+            background-color: #e9ecef;
+        }
+        
+        .category-section.expanded .category-header {
+            background-color: #e3f2fd;
+        }
+        
+        .category-header h4 {
+            margin: 0;
+            border: none;
+            color: #495057;
+            padding: 0;
+            font-size: 1.1em;
+        }
+        
+        .category-toggle {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #6c757d;
+            transition: transform 0.3s ease;
+        }
+        
+        .category-section.expanded .category-toggle {
+            transform: rotate(180deg);
+        }
+        
+        .category-content {
+            padding: 15px;
+            transition: all 0.3s ease;
+        }
+        
+        /* === FORMULARIO DENTRO DEL MODAL === */
+        #user-edit-form {
+            display: block;
+            grid-template-columns: none;
+            gap: 0;
+            padding: 0;
+            background: none;
+            border-radius: 0;
+            box-shadow: none;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 10px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+        
+        .form-row label {
+            font-weight: 500;
+            text-align: left;
+            padding: 0;
+            color: #495057;
+        }
+        
+        .form-row input,
+        .form-row select,
+        .form-row textarea {
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 0.95em;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        
+        .form-row input:focus,
+        .form-row select:focus,
+        .form-row textarea:focus {
+            outline: none;
+            border-color: #4a86e8;
+            box-shadow: 0 0 0 2px rgba(74, 134, 232, 0.2);
+        }
+        
+        .form-row input.changed,
+        .form-row select.changed,
+        .form-row textarea.changed {
+            border-color: #ffc107;
+            background-color: #fff8e1;
+        }
+        
+        /* Campos específicos */
+        .pet-field,
+        .religion-field {
+            opacity: 0.5;
+            transition: opacity 0.3s;
+        }
+        
+        .pet-field.enabled,
+        .religion-field.enabled {
+            opacity: 1;
+        }
+        
+        .category-content h5 {
+            color: #6c757d;
+            font-size: 1em;
+            margin: 20px 0 10px 0;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        /* === FOOTER DEL MODAL === */
+        .modal-footer {
+            background-color: #f8f9fa;
+            padding: 1em 1.5em;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            align-items: center;
+            border-top: 1px solid #dee2e6;
+        }
+        
+        .btn-save,
+        .btn-cancel,
+        .btn-reset {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.95em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .btn-save {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .btn-save:hover {
+            background-color: #218838;
+            transform: translateY(-1px);
+        }
+        
+        .btn-save:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-cancel {
+            background-color: #6c757d;
+            color: white;
+        }
+        
+        .btn-cancel:hover {
+            background-color: #5a6268;
+        }
+        
+        .btn-reset {
+            background-color: #ffc107;
+            color: #212529;
+        }
+        
+        .btn-reset:hover {
+            background-color: #e0a800;
+        }
+        
+        /* === RESPONSIVE PARA MODAL === */
+        @media (max-width: 768px) {
+            .modal-content {
+                width: 95%;
+                max-height: 95vh;
+            }
+            
+            .modal-body {
+                padding: 1em;
+                max-height: 70vh;
+            }
+            
+            .form-row {
+                grid-template-columns: 1fr;
+                gap: 5px;
+            }
+            
+            .form-row label {
+                font-weight: 600;
+                margin-bottom: 5px;
+            }
+            
+            .modal-footer {
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            .btn-save,
+            .btn-cancel,
+            .btn-reset {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+        
+        /* === RESPONSIVE === */
+        @media (max-width: 768px) {
+            .tab-buttons {
+                flex-direction: column;
+            }
+            
+            .status-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .preferences-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            form {
+                grid-template-columns: 1fr;
+            }
+            
+            form label {
+                text-align: left;
+                padding-top: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Gestor del Asistente Kata</h1>
+        
+        <!-- Status Bar -->
+        <div id="status-bar" style="background-color: #e8f4fd; padding: 10px; border-radius: 4px; margin-bottom: 1em; display: none;">
+            <span id="current-user-display">👤 Usuario: <strong>Cargando...</strong></span>
+            <span id="system-status" style="float: right;">🟢 Sistema: Activo</span>
+        </div>
+        
+        <!-- Pestañas Principales -->
+        <div class="tab-container">
+            <div class="tab-buttons">
+                <button class="tab-button active" onclick="showTab('configuracion')">⚙️ Configuración</button>
+                <button class="tab-button" onclick="showTab('recordatorios')">💊 Recordatorios</button>
+                <button class="tab-button" onclick="showTab('tareas')">📝 Tareas</button>
+                <button class="tab-button" onclick="showTab('contactos')">👤 Contactos</button>
+                <button class="tab-button" onclick="showTab('usuarios')">👥 Usuarios</button>
+            </div>
+            
+            <!-- === PESTAÑA DE USUARIOS === -->
+            <div id="usuarios-tab" class="tab-content">
+                <h2>Administración de Usuarios</h2>
+                
+                <!-- Dashboard de Estado -->
+                <div class="status-grid">
+                    <div class="status-card">
+                        <div class="status-number" id="total-users">0</div>
+                        <div class="status-label">Total Usuarios</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="status-number" id="current-user-name">-</div>
+                        <div class="status-label">Usuario Actual</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="status-number" id="total-backups">0</div>
+                        <div class="status-label">Backups</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="status-number" id="user-preferences">0</div>
+                        <div class="status-label">Preferencias</div>
+                    </div>
+                </div>
+                
+                <!-- Lista de Usuarios -->
+                <div class="section">
+                    <h3>👥 Usuarios Registrados</h3>
+                    <div id="users-list">
+                        <!-- Se pobla dinámicamente -->
+                    </div>
+                </div>
+                
+                <!-- Crear Nuevo Usuario -->
+                <div class="section">
+                    <h3>➕ Crear Nuevo Usuario</h3>
+                    <form id="create-user-form">
+                        <label for="new-username">Nombre de Usuario:</label>
+                        <input type="text" id="new-username" pattern="[a-z0-9_]+" required placeholder="ej: maria_garcia">
+                        
+                        <label for="new-display-name">Nombre Completo:</label>
+                        <input type="text" id="new-display-name" required placeholder="ej: María García">
+                        
+                        <label></label>
+                        <button type="submit">Crear Usuario</button>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- === PESTAÑA DE CONFIGURACIÓN === -->
+            <div id="configuracion-tab" class="tab-content active">
+                <h2>Configuración General</h2>
+                
+                <div class="section">
+                    <h3>🔊 Configuración de Voz</h3>
+                    <form id="settings-form">
+                        <label for="voice-select">Voz del Asistente:</label>
+                        <select id="voice-select"></select>
+                        <label></label><button type="submit">Guardar Configuración</button>
+                    </form>
+                </div>
+                
+            </div>
+            
+            <!-- === PESTAÑA DE RECORDATORIOS === -->
+            <div id="recordatorios-tab" class="tab-content">
+                <h2>Recordatorios de Medicamentos</h2>
+                
+                <div class="section">
+                    <table>
+                        <thead><tr><th>Medicamento</th><th>Cantidad</th><th>Horas</th><th>Días</th><th>Acción</th></tr></thead>
+                        <tbody id="reminder-list-body"></tbody>
+                    </table>
+                </div>
+                
+                <div class="section">
+                    <h3>Añadir Recordatorio</h3>
+                    <form id="add-reminder-form">
+                        <label for="medicationName">Medicamento:</label><input type="text" id="medicationName" required>
+                        <label for="medicationQuantity">Cantidad:</label><input type="text" id="medicationQuantity" placeholder="Ej: 2 pastillas, 500ml, 1/2 tableta">
+                        <label for="medicationPrescription">Prescripción:</label><textarea id="medicationPrescription" rows="3" placeholder="Ej: Tomar después del almuerzo con estómago lleno"></textarea>
+                        <label for="remindTimes">Horas (HH:MM, ...):</label><input type="text" id="remindTimes" placeholder="Ej: 08:00, 20:00" required>
+                        <label>Días:</label>
+                        <div class="day-selector" id="remind-days">
+                            <input type="checkbox" value="mon"><label>L</label>
+                            <input type="checkbox" value="tue"><label>M</label>
+                            <input type="checkbox" value="wed"><label>M</label>
+                            <input type="checkbox" value="thu"><label>J</label>
+                            <input type="checkbox" value="fri"><label>V</label>
+                            <input type="checkbox" value="sat"><label>S</label>
+                            <input type="checkbox" value="sun"><label>D</label>
+                        </div>
+                        <label for="medicationPhoto">Foto (Opcional):</label><input type="file" id="medicationPhoto" accept="image/*">
+                        <label></label><button type="submit">Guardar Recordatorio</button>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- === PESTAÑA DE TAREAS === -->
+            <div id="tareas-tab" class="tab-content">
+                <h2>Tareas Generales</h2>
+                
+                <div class="section">
+                    <table>
+                        <thead><tr><th>Tarea</th><th>Horas</th><th>Días</th><th>Acción</th></tr></thead>
+                        <tbody id="task-list-body"></tbody>
+                    </table>
+                </div>
+                
+                <div class="section">
+                    <h3>Añadir Tarea</h3>
+                    <form id="add-task-form">
+                        <label for="taskName">Nombre de la Tarea:</label><input type="text" id="taskName" required>
+                        <label for="taskTimes">Horas (HH:MM, ...):</label><input type="text" id="taskTimes" placeholder="Ej: 10:00, 18:00" required>
+                        <label>Días:</label>
+                        <div class="day-selector" id="task-days">
+                            <input type="checkbox" value="mon"><label>L</label>
+                            <input type="checkbox" value="tue"><label>M</label>
+                            <input type="checkbox" value="wed"><label>M</label>
+                            <input type="checkbox" value="thu"><label>J</label>
+                            <input type="checkbox" value="fri"><label>V</label>
+                            <input type="checkbox" value="sat"><label>S</label>
+                            <input type="checkbox" value="sun"><label>D</label>
+                        </div>
+                        <label></label><button type="submit">Guardar Tarea</button>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- === PESTAÑA DE CONTACTOS === -->
+            <div id="contactos-tab" class="tab-content">
+                <h2>Contactos</h2>
+                
+                <div class="section">
+                    <table>
+                        <thead><tr><th>Nombre</th><th>Alias</th><th>Chat ID</th><th>Emergencia</th><th>Acción</th></tr></thead>
+                        <tbody id="contact-list-body"></tbody>
+                    </table>
+                </div>
+                
+                <div class="section">
+                    <h3>Añadir Contacto</h3>
+                    <form id="add-contact-form">
+                        <label for="displayName">Nombre:</label><input type="text" id="displayName" required>
+                        <label for="aliases">Alias:</label><input type="text" id="aliases" required>
+                        <label for="details">Chat ID:</label><input type="text" id="details" required>
+                        <label for="isEmergency">Contacto de Emergencia:</label>
+                        <select id="isEmergency">
+                            <option value="false">No</option>
+                            <option value="true">Sí</option>
+                        </select>
+                        <label></label><button type="submit">Guardar Contacto</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Modal de Edición de Usuario -->
+        <div id="user-edit-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>✏️ Editar Usuario: <span id="edit-username-display">-</span></h3>
+                    <button class="close-modal" onclick="closeUserEditor()">&times;</button>
+                </div>
+                
+                <div class="modal-body">
+                    <div class="changes-indicator" id="changes-indicator" style="display: none;">
+                        <span class="changes-badge">📝 <span id="changes-count">0</span> campos modificados</span>
+                        <span class="changes-warning">⚠️ Tienes cambios sin guardar</span>
+                    </div>
+                    
+                    <form id="user-edit-form">
+                        <!-- Categoría: Información Personal -->
+                        <div class="category-section expanded" data-category="usuario">
+                            <div class="category-header" onclick="toggleCategory('usuario')">
+                                <h4>👤 Información Personal</h4>
+                                <span class="category-toggle">−</span>
+                            </div>
+                            <div class="category-content">
+                                <div class="form-row">
+                                    <label for="edit-nombre">Nombre:</label>
+                                    <input type="text" id="edit-nombre" name="usuario.nombre" required>
+                                </div>
+                                <div class="form-row">
+                                    <label for="edit-edad">Edad:</label>
+                                    <input type="number" id="edit-edad" name="usuario.edad" min="1" max="120">
+                                </div>
+                                <div class="form-row">
+                                    <label for="edit-ciudad">Ciudad:</label>
+                                    <input type="text" id="edit-ciudad" name="usuario.ciudad">
+                                </div>
+                                <div class="form-row">
+                                    <label for="edit-timezone">Zona Horaria:</label>
+                                    <select id="edit-timezone" name="usuario.timezone">
+                                        <option value="America/Guayaquil">Ecuador (America/Guayaquil)</option>
+                                        <option value="America/Lima">Perú (America/Lima)</option>
+                                        <option value="America/Bogota">Colombia (America/Bogota)</option>
+                                        <option value="America/Caracas">Venezuela (America/Caracas)</option>
+                                        <option value="America/Mexico_City">México (America/Mexico_City)</option>
+                                    </select>
+                                </div>
+                                <div class="form-row">
+                                    <label for="edit-idioma">Idioma Preferido:</label>
+                                    <select id="edit-idioma" name="usuario.idioma_preferido">
+                                        <option value="es">Español</option>
+                                        <option value="en">English</option>
+                                    </select>
+                                </div>
+                                <div class="form-row">
+                                    <label for="edit-verbose">Modo Detallado:</label>
+                                    <select id="edit-verbose" name="usuario.modo_verbose">
+                                        <option value="false">No</option>
+                                        <option value="true">Sí</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Categoría: Contexto Cultural -->
+                        <div class="category-section" data-category="contexto_cultural">
+                            <div class="category-header" onclick="toggleCategory('contexto_cultural')">
+                                <h4>🌍 Contexto Cultural</h4>
+                                <span class="category-toggle">+</span>
+                            </div>
+                            <div class="category-content" style="display: none;">
+                                <div class="form-row">
+                                    <label for="edit-pais">País:</label>
+                                    <input type="text" id="edit-pais" name="contexto_cultural.pais">
+                                </div>
+                                <div class="form-row">
+                                    <label for="edit-region">Región:</label>
+                                    <input type="text" id="edit-region" name="contexto_cultural.region">
+                                </div>
+                                <div class="form-row">
+                                    <label for="edit-tradiciones">Tradiciones (separadas por comas):</label>
+                                    <input type="text" id="edit-tradiciones" name="contexto_cultural.tradiciones_conoce" placeholder="ej: Día de los Muertos, Carnaval, Semana Santa">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Categoría: Mascotas -->
+                        <div class="category-section" data-category="mascotas">
+                            <div class="category-header" onclick="toggleCategory('mascotas')">
+                                <h4>🐕 Mascotas</h4>
+                                <span class="category-toggle">+</span>
+                            </div>
+                            <div class="category-content" style="display: none;">
+                                <div class="form-row">
+                                    <label for="edit-tiene-mascotas">¿Tiene mascotas?:</label>
+                                    <select id="edit-tiene-mascotas" name="mascotas.tiene_mascotas" onchange="togglePetFields()">
+                                        <option value="false">No</option>
+                                        <option value="true">Sí</option>
+                                    </select>
+                                </div>
+                                <div class="form-row pet-field">
+                                    <label for="edit-tipo-mascota">Tipo de mascota:</label>
+                                    <input type="text" id="edit-tipo-mascota" name="mascotas.tipo" placeholder="ej: Perro, Gato, Pájaro">
+                                </div>
+                                <div class="form-row pet-field">
+                                    <label for="edit-nombres-mascotas">Nombres (separados por comas):</label>
+                                    <input type="text" id="edit-nombres-mascotas" name="mascotas.nombres" placeholder="ej: Max, Luna, Bobby">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Categoría: Intereses -->
+                        <div class="category-section" data-category="intereses">
+                            <div class="category-header" onclick="toggleCategory('intereses')">
+                                <h4>🎨 Intereses y Hobbies</h4>
+                                <span class="category-toggle">+</span>
+                            </div>
+                            <div class="category-content" style="display: none;">
+                                <div class="form-row">
+                                    <label for="edit-hobbies">Hobbies principales (separados por comas):</label>
+                                    <input type="text" id="edit-hobbies" name="intereses.hobbies_principales" placeholder="ej: Lectura, Jardinería, Cocina">
+                                </div>
+                                <div class="form-row">
+                                    <label for="edit-musica">Música preferida (separada por comas):</label>
+                                    <input type="text" id="edit-musica" name="intereses.musica_preferida" placeholder="ej: Salsa, Rock, Clásica">
+                                </div>
+                                <div class="form-row">
+                                    <label for="edit-comidas">Comidas favoritas (separadas por comas):</label>
+                                    <input type="text" id="edit-comidas" name="intereses.comidas_favoritas" placeholder="ej: Pizza, Ceviche, Arroz con pollo">
+                                </div>
+                                <div class="form-row">
+                                    <label for="edit-actividades">Actividades sociales (separadas por comas):</label>
+                                    <input type="text" id="edit-actividades" name="intereses.actividades_sociales" placeholder="ej: Fiestas familiares, Reuniones de amigos">
+                                </div>
+                                <div class="form-row">
+                                    <label for="edit-entretenimiento">Entretenimiento (separado por comas):</label>
+                                    <input type="text" id="edit-entretenimiento" name="intereses.entretenimiento" placeholder="ej: Películas, Series, Deportes">
+                                </div>
+                                <div class="form-row">
+                                    <label for="edit-plantas">Plantas que conoce (separadas por comas):</label>
+                                    <input type="text" id="edit-plantas" name="intereses.plantas_conoce" placeholder="ej: Rosas, Tomates, Hierbas aromáticas">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Categoría: Información Religiosa -->
+                        <div class="category-section" data-category="religion">
+                            <div class="category-header" onclick="toggleCategory('religion')">
+                                <h4>⛪ Información Religiosa</h4>
+                                <span class="category-toggle">+</span>
+                            </div>
+                            <div class="category-content" style="display: none;">
+                                <div class="form-row">
+                                    <label for="edit-practica-religion">¿Practica alguna religión?:</label>
+                                    <select id="edit-practica-religion" name="religion.practica" onchange="toggleReligionFields()">
+                                        <option value="false">No</option>
+                                        <option value="true">Sí</option>
+                                    </select>
+                                </div>
+                                <div class="form-row religion-field">
+                                    <label for="edit-tipo-religion">Tipo de religión:</label>
+                                    <input type="text" id="edit-tipo-religion" name="religion.tipo" placeholder="ej: Católica, Protestante, Otra">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Categoría: Personalización -->
+                        <div class="category-section" data-category="ejemplos_personalizacion">
+                            <div class="category-header" onclick="toggleCategory('ejemplos_personalizacion')">
+                                <h4>💬 Personalización de Conversación</h4>
+                                <span class="category-toggle">+</span>
+                            </div>
+                            <div class="category-content" style="display: none;">
+                                <div class="form-row">
+                                    <label for="edit-frases-cercanas">Frases cercanas (separadas por comas):</label>
+                                    <input type="text" id="edit-frases-cercanas" name="ejemplos_personalizacion.frases_cercanas" placeholder="ej: Mi querida, Cariño, Mi amor">
+                                </div>
+                                
+                                <h5>🍽️ Contexto para hablar de comida:</h5>
+                                <div class="form-row">
+                                    <label for="edit-contexto-comida">Cuándo mencionar:</label>
+                                    <input type="text" id="edit-contexto-comida" name="ejemplos_personalizacion.cuando_hablar_comida.contexto" placeholder="ej: En horas de comida, cuando pregunte qué hacer">
+                                </div>
+                                <div class="form-row">
+                                    <label for="edit-incluir-comida">Qué incluir (separado por comas):</label>
+                                    <input type="text" id="edit-incluir-comida" name="ejemplos_personalizacion.cuando_hablar_comida.incluir" placeholder="ej: Recetas favoritas, restaurantes cercanos">
+                                </div>
+                                
+                                <h5>🎬 Contexto para hablar de entretenimiento:</h5>
+                                <div class="form-row">
+                                    <label for="edit-contexto-entretenimiento">Cuándo mencionar:</label>
+                                    <input type="text" id="edit-contexto-entretenimiento" name="ejemplos_personalizacion.cuando_hablar_entretenimiento.contexto" placeholder="ej: En tiempo libre, fines de semana">
+                                </div>
+                                <div class="form-row">
+                                    <label for="edit-incluir-entretenimiento">Qué incluir (separado por comas):</label>
+                                    <input type="text" id="edit-incluir-entretenimiento" name="ejemplos_personalizacion.cuando_hablar_entretenimiento.incluir" placeholder="ej: Películas recomendadas, eventos locales">
+                                </div>
+                                
+                                <h5>🐕 Contexto para hablar de mascotas:</h5>
+                                <div class="form-row">
+                                    <label for="edit-contexto-mascotas">Cuándo mencionar:</label>
+                                    <input type="text" id="edit-contexto-mascotas" name="ejemplos_personalizacion.cuando_hablar_mascotas.contexto" placeholder="ej: Cuando esté triste, recordatorios de cuidado">
+                                </div>
+                                <div class="form-row">
+                                    <label for="edit-incluir-mascotas">Qué incluir (separado por comas):</label>
+                                    <input type="text" id="edit-incluir-mascotas" name="ejemplos_personalizacion.cuando_hablar_mascotas.incluir" placeholder="ej: Nombres de mascotas, cuidados especiales">
+                                </div>
+                                
+                                <h5>🌱 Contexto para hablar de plantas:</h5>
+                                <div class="form-row">
+                                    <label for="edit-contexto-plantas">Cuándo mencionar:</label>
+                                    <input type="text" id="edit-contexto-plantas" name="ejemplos_personalizacion.cuando_hablar_plantas.contexto" placeholder="ej: Primavera, cuando hable de jardinería">
+                                </div>
+                                <div class="form-row">
+                                    <label for="edit-incluir-plantas">Qué incluir (separado por comas):</label>
+                                    <input type="text" id="edit-incluir-plantas" name="ejemplos_personalizacion.cuando_hablar_plantas.incluir" placeholder="ej: Consejos de riego, nombres de plantas">
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" id="save-changes-btn" class="btn-save" onclick="saveAllChanges()">
+                        💾 Guardar Cambios
+                    </button>
+                    <button type="button" id="cancel-edit-btn" class="btn-cancel" onclick="cancelEditing()">
+                        ❌ Cancelar
+                    </button>
+                    <button type="button" id="reset-form-btn" class="btn-reset" onclick="resetForm()">
+                        🔄 Resetear
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Área de mensajes -->
+        <div id="message-area"></div>
+    </div>
+
+    <!-- JavaScript (se implementará en el siguiente paso) -->
+    <script src="/static/app.js"></script>
+</body>
+</html>

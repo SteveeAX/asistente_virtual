@@ -1,15 +1,31 @@
 from flask import Flask, jsonify, render_template, request
 from datetime import datetime
-import reminders
 import logging
 import os
 import sys
 import time
 from werkzeug.utils import secure_filename
 
+# === SISTEMA HÍBRIDO: COMPARTIDO + POR USUARIO ===
+# - Medicamentos, tareas, contactos, configuración → BD compartida (todos los usuarios)
+# - Solo preferencias de IA → BD por usuario
+# Los endpoints de datos compartidos NO requieren @require_user_context
+
+# === CONFIGURAR PATHS PARA NUEVA ESTRUCTURA ===
+# Obtener directorio raíz del proyecto (3 niveles arriba de src/ui/web/)
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+sys.path.insert(0, PROJECT_ROOT)
+
+# Importar reminders desde la nueva estructura o fallback
+try:
+    import reminders  # Archivo legacy en raíz
+except ImportError:
+    from src.data.legacy import reminders
+
 # === IMPORTAR SISTEMA MULTI-USUARIO ===
-# Agregar directorio database al path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'database'))
+# Agregar directorio database al path (ahora relativo al proyecto)
+database_path = os.path.join(PROJECT_ROOT, 'database')
+sys.path.append(database_path)
 
 try:
     from database.models.user_context import user_context_middleware, require_user_context
@@ -29,7 +45,14 @@ except ImportError as e:
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
-app = Flask(__name__)
+# === CONFIGURAR FLASK CON NUEVA ESTRUCTURA ===
+# Configurar paths para templates y static
+template_folder = os.path.join(os.path.dirname(__file__), 'templates')
+static_folder = os.path.join(os.path.dirname(__file__), 'static')
+
+app = Flask(__name__, 
+           template_folder=template_folder,
+           static_folder=static_folder)
 
 # === CONFIGURAR SISTEMA MULTI-USUARIO ===
 if MULTI_USER_AVAILABLE:
@@ -46,24 +69,25 @@ else:
 # === FUNCIÓN HELPER PARA REMINDERS ===
 def get_reminders_service():
     """
-    Obtiene el servicio de recordatorios apropiado (adaptador o legacy).
+    Obtiene el servicio de recordatorios (ahora siempre sistema compartido).
     
     Returns:
-        El servicio de recordatorios a usar
+        El servicio de recordatorios a usar (datos compartidos)
     """
     if MULTI_USER_AVAILABLE and reminders_adapter:
-        return reminders_adapter
+        return reminders_adapter  # Ahora redirige a BD compartida
     else:
-        return reminders
+        return reminders  # Fallback legacy
 
 # --- CONFIGURACIÓN PARA SUBIDA DE ARCHIVOS ---
-UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
+# Usar directorio uploads del proyecto principal
+UPLOAD_FOLDER = os.path.join(PROJECT_ROOT, 'uploads')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-# Ruta al archivo de señal
-SETTINGS_FLAG_PATH = os.path.join(os.path.dirname(__file__), "settings_updated.flag")
+# Ruta al archivo de señal (en directorio principal del proyecto)
+SETTINGS_FLAG_PATH = os.path.join(PROJECT_ROOT, "settings_updated.flag")
 
 # Lista de voces predefinidas
 AVAILABLE_VOICES = {
@@ -78,15 +102,13 @@ AVAILABLE_VOICES = {
 def index():
     return render_template('index.html')
 
-# --- API de Contactos ---
+# --- API de Contactos (COMPARTIDOS) ---
 @app.route('/api/contacts', methods=['GET'])
-@require_user_context
 def get_contacts():
     service = get_reminders_service()
     return jsonify(service.list_contacts())
 
 @app.route('/api/contacts/add', methods=['POST'])
-@require_user_context
 def add_contact_route():
     data = request.json
     try:
@@ -97,7 +119,6 @@ def add_contact_route():
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/contacts/delete', methods=['POST'])
-@require_user_context
 def delete_contact_route():
     data = request.json
     try:
@@ -107,14 +128,13 @@ def delete_contact_route():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
-# --- API de Recordatorios ---
+# --- API de Recordatorios (COMPARTIDOS) ---
 @app.route('/api/reminders', methods=['GET'])
-@require_user_context
 def get_reminders():
-    return jsonify(reminders.list_reminders())
+    service = get_reminders_service()
+    return jsonify(service.list_reminders())
 
 @app.route('/api/reminders/add', methods=['POST'])
-@require_user_context
 def add_reminder_route():
     try:
         medication_name = request.form['medication_name']
@@ -130,7 +150,8 @@ def add_reminder_route():
             file.save(photo_path)
         
         # Pasar los nuevos campos a la función add_reminder
-        reminders.add_reminder(medication_name, photo_path, times, days_of_week, cantidad, prescripcion)
+        service = get_reminders_service()
+        service.add_reminder(medication_name, photo_path, times, days_of_week, cantidad, prescripcion)
         
         if os.path.exists(SETTINGS_FLAG_PATH): os.remove(SETTINGS_FLAG_PATH)
         with open(SETTINGS_FLAG_PATH, 'w') as f: f.write('update_scheduler')
@@ -140,33 +161,33 @@ def add_reminder_route():
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/reminders/delete', methods=['POST'])
-@require_user_context
 def delete_reminder_route():
     data = request.json
     try:
-        reminders.delete_reminder(data['id'])
+        service = get_reminders_service()
+        service.delete_reminder(data['id'])
         if os.path.exists(SETTINGS_FLAG_PATH): os.remove(SETTINGS_FLAG_PATH)
         with open(SETTINGS_FLAG_PATH, 'w') as f: f.write('update_scheduler')
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
-# --- NUEVAS RUTAS PARA TAREAS ---
+# --- RUTAS PARA TAREAS (COMPARTIDAS) ---
 @app.route('/api/tasks', methods=['GET'])
-@require_user_context
 def get_tasks():
     try:
-        tasks = reminders.list_tasks()
+        service = get_reminders_service()
+        tasks = service.list_tasks()
         return jsonify(tasks)
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/tasks/add', methods=['POST'])
-@require_user_context
 def add_task_route():
     data = request.json
     try:
-        reminders.add_task(data['task_name'], data['times'], data['days_of_week'])
+        service = get_reminders_service()
+        service.add_task(data['task_name'], data['times'], data['days_of_week'])
         if os.path.exists(SETTINGS_FLAG_PATH): os.remove(SETTINGS_FLAG_PATH)
         with open(SETTINGS_FLAG_PATH, 'w') as f: f.write('update_scheduler')
         return jsonify({"success": True})
@@ -174,11 +195,11 @@ def add_task_route():
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/tasks/delete', methods=['POST'])
-@require_user_context
 def delete_task_route():
     data = request.json
     try:
-        reminders.delete_task(data['id'])
+        service = get_reminders_service()
+        service.delete_task(data['id'])
         if os.path.exists(SETTINGS_FLAG_PATH): os.remove(SETTINGS_FLAG_PATH)
         with open(SETTINGS_FLAG_PATH, 'w') as f: f.write('update_scheduler')
         return jsonify({"success": True})
@@ -193,13 +214,15 @@ def get_available_voices():
 
 @app.route('/api/settings', methods=['GET'])
 def get_settings():
-    return jsonify({'voice_name': reminders.get_setting('voice_name', 'es-US-Neural2-A')})
+    service = get_reminders_service()
+    return jsonify({'voice_name': service.get_setting('voice_name', 'es-US-Neural2-A')})
 
 @app.route('/api/settings', methods=['POST'])
 def save_settings():
     data = request.json
     try:
-        reminders.set_setting('voice_name', data['voice_name'])
+        service = get_reminders_service()
+        service.set_setting('voice_name', data['voice_name'])
         if os.path.exists(SETTINGS_FLAG_PATH): os.remove(SETTINGS_FLAG_PATH)
         with open(SETTINGS_FLAG_PATH, 'w') as f:
             f.write('update_voice')

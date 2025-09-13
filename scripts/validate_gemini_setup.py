@@ -15,8 +15,8 @@ import os
 
 # Agregar directorios al path
 project_dir = "/home/steveen/asistente_kata"
-modules_dir = os.path.join(project_dir, "modules")
-sys.path.insert(0, modules_dir)
+src_dir = os.path.join(project_dir, "src")
+sys.path.insert(0, src_dir)
 sys.path.insert(0, project_dir)
 
 def validate_quick_setup():
@@ -54,21 +54,21 @@ def validate_quick_setup():
         return False
     
     try:
-        from generative.gemini_api_manager import GeminiAPIManager
+        from ai.generative.gemini_api_manager import GeminiAPIManager
         print("   ✅ GeminiAPIManager importado correctamente")
     except ImportError as e:
         print(f"   ❌ Error importando GeminiAPIManager: {e}")
         return False
     
     try:
-        from generative.generative_route import GenerativeRoute
+        from ai.generative.generative_route import GenerativeRoute
         print("   ✅ GenerativeRoute importado correctamente")
     except ImportError as e:
         print(f"   ❌ Error importando GenerativeRoute: {e}")
         return False
     
     try:
-        from generative.router_central import RouterCentral
+        from ai.generative.router_central import RouterCentral
         print("   ✅ RouterCentral importado correctamente")
     except ImportError as e:
         print(f"   ❌ Error importando RouterCentral: {e}")
