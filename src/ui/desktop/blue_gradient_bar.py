@@ -13,7 +13,7 @@ Características:
 - Animación sutil opcional
 - Optimizado para rendimiento
 
-Autor: Asistente Kata
+Autor: SteveeAX
 """
 
 import customtkinter as ctk

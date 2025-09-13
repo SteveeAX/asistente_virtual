@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 
 """
-Web UI - Asistente Kata
+Web UI - Asistente Virtual
 ========================
 
 Servidor web Flask para administracion remota del sistema.
 
-Autor: Asistente Kata
+Autor: SteveeAX
 Version: 2.0.0 - Refactoring
 """
 

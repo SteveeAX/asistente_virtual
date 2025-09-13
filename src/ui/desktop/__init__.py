@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 
 """
-Desktop UI - Asistente Kata
+Desktop UI - Asistente Virtual
 ============================
 
 Interfaces de usuario de escritorio: reloj, tabs administrativas, etc.
 
-Autor: Asistente Kata
+Autor: SteveeAX
 Version: 2.0.0 - Refactoring
 """
 

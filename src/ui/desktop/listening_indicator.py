@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 
 """
-ListeningIndicator - Indicador visual de escucha para Asistente Kata
+ListeningIndicator - Indicador visual de escucha para Asistente Virtual
 
 Proporciona un indicador visual animado que muestra cuando el asistente
 está escuchando comandos de voz.
 
-Autor: Asistente Kata
+Autor: SteveeAX
 """
 
 import customtkinter as ctk
